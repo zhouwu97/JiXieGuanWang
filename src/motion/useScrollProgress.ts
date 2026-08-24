@@ -8,6 +8,17 @@ export function useScrollProgress() {
   const snapshotRef = useRef<ScrollSnapshot>(getScrollSnapshot())
 
   useEffect(() => {
+    if (reduced) {
+      const snapshot = getScrollSnapshot()
+      snapshot.velocity = 0
+      snapshotRef.current = snapshot
+      const root = document.documentElement
+      root.style.setProperty('--scroll-y', `${snapshot.y}px`)
+      root.style.setProperty('--scroll-progress', snapshot.progress.toFixed(4))
+      root.style.setProperty('--scroll-velocity', '0')
+      root.style.setProperty('--ticker-speed', '30s')
+      return undefined
+    }
     return subscribeMotion((frame) => {
       snapshotRef.current = frame.scroll
       const root = document.documentElement

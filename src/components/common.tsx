@@ -8,6 +8,7 @@ import {
 import { clamp } from '../motion/motionMath'
 import { getPointerSnapshot, subscribePointerDown } from '../motion/motionRuntime'
 import { useRafLoop } from '../motion/useRafLoop'
+import { useMediaQuery } from '../motion/useMediaQuery'
 import { useReducedMotion } from '../motion/useReducedMotion'
 
 export function Reveal({
@@ -169,7 +170,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<{ render: (time: number) => void; addPulse: (x: number, y: number) => void } | null>(null)
   const reduced = useReducedMotion()
-  const fine = typeof matchMedia !== 'function' || matchMedia('(pointer: fine)').matches
+  const fine = useMediaQuery('(pointer: fine)')
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -454,18 +455,17 @@ export function LiveClock() {
 
 export function PointerGlow() {
   const reduced = useReducedMotion()
-  const fine = typeof matchMedia !== 'function' || matchMedia('(pointer: fine)').matches
+  const fine = useMediaQuery('(pointer: fine)')
   const pointerRef = useRef<HTMLDivElement>(null)
   const reticleRef = useRef<HTMLDivElement>(null)
   const coordinateRef = useRef<HTMLSpanElement>(null)
   const trailRefs = useRef<HTMLSpanElement[]>([])
-  const historyRef = useRef(Array.from({ length: 7 }, () => ({ x: 0, y: 0 })))
+  const historyRef = useRef(Array.from({ length: 24 }, () => ({ x: 0, y: 0 })))
   const [pulses, setPulses] = useState<{ id: number; x: number; y: number }[]>([])
   const nextPulse = useRef(0)
 
   useEffect(() => {
-    if (reduced || (typeof matchMedia === 'function' && !matchMedia('(pointer: fine)').matches)) return undefined
-    document.body.classList.add('pointer-ready')
+    if (reduced || !fine) return undefined
     const onOver = (event: PointerEvent) => {
       const target = (event.target as HTMLElement | null)?.closest?.('a,button,.terminal,.deploy-terminal,.dossier,.track-row,.album')
       if (!target) return
@@ -484,7 +484,7 @@ export function PointerGlow() {
       document.removeEventListener('pointerover', onOver)
       document.removeEventListener('pointerout', onOut)
     }
-  }, [reduced])
+  }, [reduced, fine])
 
   useEffect(() => {
     if (reduced || !fine) return undefined
@@ -506,6 +506,8 @@ export function PointerGlow() {
 
   useRafLoop(({ pointer }) => {
     if (!pointerRef.current || !reticleRef.current || !coordinateRef.current) return
+    if (!pointer.active) return
+    document.body.classList.add('pointer-ready')
     const pointerEl = pointerRef.current
     const reticleEl = reticleRef.current
     pointerEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(45deg)`
@@ -513,9 +515,9 @@ export function PointerGlow() {
     coordinateRef.current.style.transform = `translate3d(${pointer.x + 27}px, ${pointer.y + 24}px, 0)`
     coordinateRef.current.textContent = `X${String(Math.round(pointer.targetX)).padStart(4, '0')} / Y${String(Math.round(pointer.targetY)).padStart(4, '0')}`
     historyRef.current.unshift({ x: pointer.x, y: pointer.y })
-    historyRef.current.length = 7
+    historyRef.current.length = 24
     trailRefs.current.forEach((element, index) => {
-      const point = historyRef.current[Math.min(historyRef.current.length - 1, (index + 1) * 1.2)] ?? historyRef.current[0]
+      const point = historyRef.current[Math.min(historyRef.current.length - 1, Math.round((index + 1) * 3))]
       element.style.opacity = `${Math.max(0.05, 0.35 - index * 0.05)}`
       element.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) rotate(45deg) scale(${1 - index * 0.08})`
     })

@@ -3,6 +3,7 @@ import { associationMeta, getTrackById, tracks } from '../data/tracks'
 import { CountUp, GlitchText, LiveClock, Network, Ticker } from './common'
 import { clamp } from '../motion/motionMath'
 import { useRafLoop } from '../motion/useRafLoop'
+import { useMediaQuery } from '../motion/useMediaQuery'
 import { useReducedMotion } from '../motion/useReducedMotion'
 
 const assetBase = import.meta.env.BASE_URL
@@ -47,7 +48,7 @@ export function Hero() {
   const glitchBusy = useRef(false)
   const glitchEndTimer = useRef<number | null>(null)
   const reduced = useReducedMotion()
-  const mobile = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches
+  const mobile = useMediaQuery('(max-width: 760px)', false)
 
   const triggerGlitch = useCallback(() => {
     if (reduced || glitchBusy.current) return

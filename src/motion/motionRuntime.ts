@@ -53,10 +53,13 @@ let lastPointerX = 0
 let lastPointerY = 0
 let lastScrollY = 0
 let lastScrollTime = 0
-let reducedMotion = false
+let pointerInitialized = false
+let runtimeListening = false
 
 function updateFinePointer() {
-  pointer.fine = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches
+  pointer.fine = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: fine)').matches
 }
 
 function updateScroll() {
@@ -67,6 +70,13 @@ function updateScroll() {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (!pointerInitialized) {
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+    lastPointerX = event.clientX
+    lastPointerY = event.clientY
+    pointerInitialized = true
+  }
   pointer.targetX = event.clientX
   pointer.targetY = event.clientY
   pointer.active = true
@@ -126,7 +136,8 @@ function frame(time: number) {
 }
 
 function ensureRuntime() {
-  if (frameListeners.size + pointerDownListeners.size === 0) {
+  if (!runtimeListening) {
+    runtimeListening = true
     updateFinePointer()
     updateScroll()
     lastScrollY = scroll.y
@@ -141,6 +152,8 @@ function ensureRuntime() {
 
 function releaseRuntime() {
   if (frameListeners.size + pointerDownListeners.size > 0) return
+  if (!runtimeListening) return
+  runtimeListening = false
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerleave', onPointerLeave)
   window.removeEventListener('pointerdown', onPointerDown)
@@ -148,6 +161,8 @@ function releaseRuntime() {
   window.removeEventListener('resize', onResize)
   if (raf) cancelAnimationFrame(raf)
   raf = 0
+  pointer.active = false
+  pointerInitialized = false
 }
 
 export function subscribeMotion(listener: FrameListener) {
@@ -174,12 +189,4 @@ export function getPointerSnapshot() {
 
 export function getScrollSnapshot() {
   return { ...scroll }
-}
-
-export function setReducedMotion(value: boolean) {
-  reducedMotion = value
-}
-
-export function isReducedMotion() {
-  return reducedMotion
 }

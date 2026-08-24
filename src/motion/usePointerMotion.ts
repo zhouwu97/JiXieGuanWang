@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { subscribeMotion, getPointerSnapshot, type PointerSnapshot } from './motionRuntime'
+import { useMediaQuery } from './useMediaQuery'
 import { useReducedMotion } from './useReducedMotion'
 
 export function usePointerMotion() {
   const reduced = useReducedMotion()
-  const fine = typeof matchMedia !== 'function' || matchMedia('(pointer: fine)').matches
+  const fine = useMediaQuery('(pointer: fine)')
   const snapshotRef = useRef<PointerSnapshot>(getPointerSnapshot())
 
   useEffect(() => {
