@@ -1,15 +1,20 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type TransitionEvent as ReactTransitionEvent,
 } from 'react'
 import { activityEvent, eventPhotos, type EventPhoto } from '../data/activities'
+import { useReducedMotion } from '../motion/useReducedMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
 
 const assetBase = import.meta.env.BASE_URL
-const autoplayMs = 4500
+const AUTOPLAY_MS = 4500
+
+type SlideChangeSource = 'auto' | 'arrow' | 'dot' | 'swipe' | 'keyboard'
 
 interface SlideEntry {
   key: string
@@ -17,12 +22,36 @@ interface SlideEntry {
   clone: boolean
 }
 
+function isInteractiveTarget(target: EventTarget | null) {
+  return typeof Element !== 'undefined'
+    && target instanceof Element
+    && Boolean(target.closest('button,a,input,textarea,select,[role="button"]'))
+}
+
+function getRealIndex(position: number, count: number) {
+  if (position === 0) return count - 1
+  if (position === count + 1) return 0
+  return position - 1
+}
+
 export function ActivitiesSection() {
   const count = eventPhotos.length
   const [pos, setPos] = useState(1)
   const [instant, setInstant] = useState(false)
-  const [paused, setPaused] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [focusInside, setFocusInside] = useState(false)
+  const [userPaused, setUserPaused] = useState(false)
+  const [sectionVisible, setSectionVisible] = useState(true)
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  )
+  const [autoplayReset, setAutoplayReset] = useState(0)
+  const [announcement, setAnnouncement] = useState('')
   const startX = useRef<number | null>(null)
+  const posRef = useRef(1)
+  const instantFrameRef = useRef<number | null>(null)
+  const albumRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
 
   const entries: SlideEntry[] = [
@@ -31,51 +60,133 @@ export function ActivitiesSection() {
     { key: 'clone-first', photo: eventPhotos[0], clone: true },
   ]
 
-  const realIndex = pos === 0 ? count - 1 : pos === count + 1 ? 0 : pos - 1
+  const realIndex = getRealIndex(pos, count)
   const active = eventPhotos[realIndex]
 
-  const goStep = (step: number) => {
-    setPos((prev) => Math.max(0, Math.min(count + 1, prev + step)))
-  }
+  const updatePosition = useCallback((nextPosition: number, source: SlideChangeSource) => {
+    const safePosition = Math.max(0, Math.min(count + 1, nextPosition))
+    posRef.current = safePosition
+    setPos(safePosition)
+    if (source !== 'auto') {
+      setAnnouncement(eventPhotos[getRealIndex(safePosition, count)].title)
+      setAutoplayReset((current) => current + 1)
+    }
+  }, [count])
+
+  const goStep = useCallback((step: number, source: SlideChangeSource) => {
+    updatePosition(posRef.current + step, source)
+  }, [updatePosition])
+
+  const goTo = useCallback((index: number, source: SlideChangeSource) => {
+    updatePosition(index + 1, source)
+  }, [updatePosition])
+
+  const reduced = useReducedMotion()
+  const autoplayAllowed =
+    !reduced
+    && !hovered
+    && !dragging
+    && !focusInside
+    && !userPaused
+    && sectionVisible
+    && pageVisible
 
   useEffect(() => {
-    const reduced =
-      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return undefined
-    const timer = window.setInterval(() => {
-      if (!paused) setPos((prev) => Math.min(count + 1, prev + 1))
-    }, autoplayMs)
-    return () => window.clearInterval(timer)
-  }, [paused, count])
-
-  useEffect(() => {
-    if (!instant) return undefined
-    const timer = window.setTimeout(() => setInstant(false), 60)
+    if (!autoplayAllowed) return undefined
+    const timer = window.setTimeout(() => goStep(1, 'auto'), AUTOPLAY_MS)
     return () => window.clearTimeout(timer)
-  }, [instant])
+  }, [autoplayAllowed, autoplayReset, goStep, realIndex])
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState === 'visible')
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  useEffect(() => {
+    const album = albumRef.current
+    if (!album || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(
+      (entries) => setSectionVisible(entries[0]?.isIntersecting ?? false),
+      { rootMargin: '100px 0px' },
+    )
+    observer.observe(album)
+    return () => observer.disconnect()
+  }, [])
+
+  const cancelInstantReset = useCallback(() => {
+    if (instantFrameRef.current !== null && typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(instantFrameRef.current)
+    }
+    instantFrameRef.current = null
+  }, [])
+
+  const scheduleInstantReset = useCallback(() => {
+    cancelInstantReset()
+    if (typeof window.requestAnimationFrame !== 'function') {
+      setInstant(false)
+      return
+    }
+    let frameCount = 0
+    const nextFrame = () => {
+      frameCount += 1
+      if (frameCount >= 2) {
+        instantFrameRef.current = null
+        setInstant(false)
+        return
+      }
+      instantFrameRef.current = window.requestAnimationFrame(nextFrame)
+    }
+    instantFrameRef.current = window.requestAnimationFrame(nextFrame)
+  }, [cancelInstantReset])
+
+  useEffect(() => {
+    return cancelInstantReset
+  }, [cancelInstantReset])
 
   const onTransitionEnd = (event: ReactTransitionEvent<HTMLDivElement>) => {
-    if (event.target !== trackRef.current) return
-    if (pos === 0) {
+    if (event.target !== trackRef.current || event.propertyName !== 'transform') return
+    if (posRef.current === 0) {
       setInstant(true)
-      setPos(count)
-    } else if (pos === count + 1) {
+      updatePosition(count, 'auto')
+      scheduleInstantReset()
+    } else if (posRef.current === count + 1) {
       setInstant(true)
-      setPos(1)
+      updatePosition(1, 'auto')
+      scheduleInstantReset()
     }
   }
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isInteractiveTarget(event.target)) return
     startX.current = event.clientX
+    setDragging(true)
     event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const cancelDrag = () => {
+    startX.current = null
+    setDragging(false)
   }
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (startX.current === null) return
     const delta = event.clientX - startX.current
     startX.current = null
-    event.currentTarget.releasePointerCapture?.(event.pointerId)
-    if (Math.abs(delta) > 42) goStep(delta < 0 ? 1 : -1)
+    setDragging(false)
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+    if (Math.abs(delta) > 42) goStep(delta < 0 ? 1 : -1, 'swipe')
+  }
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      goStep(event.key === 'ArrowRight' ? 1 : -1, 'keyboard')
+    }
   }
 
   return (
@@ -101,23 +212,47 @@ export function ActivitiesSection() {
         </div>
 
         <Reveal>
-          <div className="album" role="region" aria-label="活动现场相册">
+          <div
+            ref={albumRef}
+            className="album"
+            role="region"
+            aria-label="活动现场相册"
+            onFocusCapture={() => setFocusInside(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setFocusInside(false)
+              }
+            }}
+          >
             <div className="album__head">
               <strong className="album__name">{activityEvent.name}</strong>
-              <span className="album__meta">
-                ◆ {activityEvent.date} · {activityEvent.venue}
-              </span>
+              <div className="album__head-actions">
+                <span className="album__meta">
+                  ◆ {activityEvent.date} · {activityEvent.venue}
+                </span>
+                <button
+                  type="button"
+                  className="album__toggle"
+                  aria-label={userPaused ? '继续相册自动播放' : '暂停相册自动播放'}
+                  onClick={() => setUserPaused((current) => !current)}
+                >
+                  {userPaused ? 'PLAY' : 'PAUSE'}
+                </button>
+              </div>
             </div>
 
             <div
               className="album__media"
+              tabIndex={0}
+              aria-label="活动照片轮播，使用左右方向键切换"
               onPointerDown={onPointerDown}
               onPointerUp={onPointerUp}
-              onPointerLeave={() => {
-                startX.current = null
-              }}
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
+              onPointerCancel={cancelDrag}
+              onLostPointerCapture={cancelDrag}
+              onPointerLeave={cancelDrag}
+              onKeyDown={onKeyDown}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
             >
               <div
                 ref={trackRef}
@@ -128,16 +263,16 @@ export function ActivitiesSection() {
                 }}
                 onTransitionEnd={onTransitionEnd}
               >
-                {entries.map((entry) => (
+                {entries.map((entry, index) => (
                   <figure
-                    className={`album__slide${!entry.clone && entry.photo.id === active.id ? ' is-current' : ''}`}
+                    className={`album__slide${index === pos ? ' is-current' : ''}`}
                     key={entry.key}
                     aria-hidden={entry.clone || undefined}
                   >
                     <img
                       src={`${assetBase}${entry.photo.image}`}
                       alt={entry.clone ? '' : entry.photo.title}
-                      loading="lazy"
+                      loading={index === 1 ? 'eager' : 'lazy'}
                       draggable={false}
                     />
                   </figure>
@@ -153,7 +288,7 @@ export function ActivitiesSection() {
                 type="button"
                 className="album__arrow album__arrow--prev"
                 aria-label="上一张照片"
-                onClick={() => goStep(-1)}
+                onClick={() => goStep(-1, 'arrow')}
               >
                 ‹
               </button>
@@ -161,7 +296,7 @@ export function ActivitiesSection() {
                 type="button"
                 className="album__arrow album__arrow--next"
                 aria-label="下一张照片"
-                onClick={() => goStep(1)}
+                onClick={() => goStep(1, 'arrow')}
               >
                 ›
               </button>
@@ -173,17 +308,20 @@ export function ActivitiesSection() {
                     aria-label={`第 ${photoIndex + 1} 张：${photo.title}`}
                     aria-pressed={photoIndex === realIndex}
                     className={photoIndex === realIndex ? 'is-active' : ''}
-                    onClick={() => setPos(photoIndex + 1)}
+                    onClick={() => goTo(photoIndex, 'dot')}
                   />
                 ))}
               </div>
             </div>
 
-            <div className="album__caption" key={active.id} aria-live="polite">
+            <div className="album__caption" key={active.id}>
               <span className="album__caption-date">◆ {activityEvent.date}</span>
               <h3>{active.title}</h3>
               <p>{active.desc}</p>
             </div>
+            <p className="sr-only" role="status" aria-live="polite">
+              {announcement}
+            </p>
           </div>
         </Reveal>
       </div>
