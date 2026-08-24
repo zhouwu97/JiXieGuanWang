@@ -49,6 +49,28 @@ export function Hero() {
   const glitchEndTimer = useRef<number | null>(null)
   const reduced = useReducedMotion()
   const mobile = useMediaQuery('(max-width: 760px)', false)
+  const [heroVisible, setHeroVisible] = useState(true)
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  )
+
+  useEffect(() => {
+    const hero = heroRef.current
+    if (!hero || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(
+      (entries) => setHeroVisible(entries[0]?.isIntersecting ?? false),
+      { rootMargin: '120px 0px' },
+    )
+    observer.observe(hero)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState === 'visible')
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
 
   const triggerGlitch = useCallback(() => {
     if (reduced || glitchBusy.current || document.visibilityState === 'hidden') return
@@ -94,8 +116,18 @@ export function Hero() {
       if (terminalRef.current) terminalRef.current.style.transform = `perspective(1000px) rotateY(${-progress * 3}deg) rotateX(${progress * 1.5}deg)`
       if (ghostRef.current) ghostRef.current.style.transform = `translate3d(${-progress * 95}px, ${progress * 14}px, 0)`
     },
-    isHeroParallaxEnabled(reduced, mobile),
+    isHeroParallaxEnabled(reduced, mobile) && heroVisible && pageVisible,
   )
+
+  useEffect(() => {
+    if (isHeroParallaxEnabled(reduced, mobile) && heroVisible && pageVisible) return undefined
+    if (innerRef.current) innerRef.current.style.opacity = ''
+    if (copyRef.current) copyRef.current.style.transform = ''
+    if (sideRef.current) sideRef.current.style.transform = ''
+    if (terminalRef.current) terminalRef.current.style.transform = ''
+    if (ghostRef.current) ghostRef.current.style.transform = ''
+    return undefined
+  }, [reduced, mobile, heroVisible, pageVisible])
 
   return (
     <section id="home" ref={heroRef} className="hero">

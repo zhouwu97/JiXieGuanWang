@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react'
 import { clamp } from '../motion/motionMath'
-import { getPointerSnapshot, subscribePointerDown } from '../motion/motionRuntime'
+import { getPointerSnapshot, subscribeMotion, subscribePointerDown } from '../motion/motionRuntime'
 import { isNetworkPulseInteraction, shouldAnimateNetwork } from '../motion/networkMotion'
 import { useRafLoop } from '../motion/useRafLoop'
 import { useMediaQuery } from '../motion/useMediaQuery'
@@ -114,25 +114,22 @@ export function Ticker({
 export function CountUp({ to, duration = 1.4 }: { to: number; duration?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const started = useRef(false)
-  const startedAt = useRef<number | null>(null)
+  const frameRef = useRef<number | null>(null)
   const [value, setValue] = useState('00')
   const reduced = useReducedMotion()
 
-  useRafLoop(
-    ({ time }) => {
-      if (startedAt.current === null) return
-      const progress = Math.min(1, (time - startedAt.current) / (duration * 1000))
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setValue(String(Math.round(to * eased)).padStart(2, '0'))
-      if (progress >= 1) startedAt.current = null
-    },
-    !reduced,
-  )
-
   useEffect(() => {
     const node = ref.current
-    if (!node) return
-    const finish = () => setValue(String(to).padStart(2, '0'))
+    if (!node) return undefined
+    const cancel = () => {
+      if (frameRef.current === null) return
+      window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+    }
+    const finish = () => {
+      cancel()
+      setValue(String(to).padStart(2, '0'))
+    }
     if (typeof IntersectionObserver === 'undefined' || reduced) {
       finish()
       return undefined
@@ -143,12 +140,23 @@ export function CountUp({ to, duration = 1.4 }: { to: number; duration?: number 
           if (!entry.isIntersecting || started.current) return
           started.current = true
           observer.disconnect()
-          startedAt.current = performance.now()
+          const startedAt = performance.now()
+          const tick = (time: number) => {
+            const progress = Math.min(1, (time - startedAt) / (duration * 1000))
+            const eased = 1 - Math.pow(1 - progress, 3)
+            setValue(String(Math.round(to * eased)).padStart(2, '0'))
+            if (progress < 1) frameRef.current = window.requestAnimationFrame(tick)
+            else frameRef.current = null
+          }
+          frameRef.current = window.requestAnimationFrame(tick)
         }),
       { threshold: 0.4 },
     )
     observer.observe(node)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      cancel()
+    }
   }, [to, duration, reduced])
 
   return <span ref={ref}>{value}</span>
@@ -368,8 +376,16 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     resize()
     const observer = 'ResizeObserver' in window ? new ResizeObserver(resize) : null
     observer?.observe(host)
-    window.addEventListener('scroll', syncCanvasBounds, { passive: true })
-    window.addEventListener('resize', syncCanvasBounds, { passive: true })
+    let lastScrollY = window.scrollY
+    let lastViewport = `${window.innerWidth}x${window.innerHeight}`
+    const unsubscribeGeometry = subscribeMotion((frame) => {
+      const viewport = `${window.innerWidth}x${window.innerHeight}`
+      if (frame.scroll.y !== lastScrollY || viewport !== lastViewport) {
+        lastScrollY = frame.scroll.y
+        lastViewport = viewport
+        syncCanvasBounds()
+      }
+    }, { continuous: false })
 
     sceneRef.current = {
       render,
@@ -383,8 +399,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     return () => {
       sceneRef.current = null
       observer?.disconnect()
-      window.removeEventListener('scroll', syncCanvasBounds)
-      window.removeEventListener('resize', syncCanvasBounds)
+      unsubscribeGeometry()
     }
   }, [])
 
@@ -425,26 +440,29 @@ const bootLines: readonly string[] = [
   'READY_',
 ]
 
+function shouldShowBoot() {
+  try {
+    if (sessionStorage.getItem(bootKey) === '1') return false
+  } catch {
+    // 存储不可用时仍允许本次启动展示，不影响页面交互。
+  }
+  return !(typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+}
+
 export function BootOverlay() {
-  const [phase, setPhase] = useState<'off' | 'on' | 'done'>('off')
+  const [phase, setPhase] = useState<'off' | 'on' | 'done'>(() => (shouldShowBoot() ? 'on' : 'off'))
 
   useEffect(() => {
-    let seen = false
-    try {
-      seen = sessionStorage.getItem(bootKey) === '1'
-    } catch {
-      seen = false
-    }
-    if (seen) return
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (phase === 'off') {
       try {
         sessionStorage.setItem(bootKey, '1')
       } catch {
         /* 忽略存储异常 */
       }
-      return
+      return undefined
     }
-    setPhase('on')
     const hideAt = window.setTimeout(() => setPhase('done'), 1050)
     const clearAt = window.setTimeout(() => {
       setPhase('off')
@@ -490,9 +508,26 @@ export function LiveClock() {
       const now = new Date()
       setTime(now.toTimeString().slice(0, 8))
     }
-    update()
-    const timer = window.setInterval(update, 1000)
-    return () => window.clearInterval(timer)
+    let timer: number | null = null
+    const start = () => {
+      update()
+      if (timer === null) timer = window.setInterval(update, 1000)
+    }
+    const stop = () => {
+      if (timer === null) return
+      window.clearInterval(timer)
+      timer = null
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') start()
+      else stop()
+    }
+    onVisibilityChange()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
 
   return <span className="live-clock">{time}</span>
@@ -501,6 +536,10 @@ export function LiveClock() {
 export function PointerGlow() {
   const reduced = useReducedMotion()
   const fine = useMediaQuery('(pointer: fine)')
+  const [qrOpen, setQrOpen] = useState(false)
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  )
   const pointerRef = useRef<HTMLDivElement>(null)
   const reticleRef = useRef<HTMLDivElement>(null)
   const coordinateRef = useRef<HTMLSpanElement>(null)
@@ -510,7 +549,34 @@ export function PointerGlow() {
   const nextPulse = useRef(0)
 
   useEffect(() => {
-    if (reduced || !fine) return undefined
+    const update = () => {
+      const open = document.body.classList.contains('qr-open')
+      setQrOpen(open)
+      if (open) {
+        document.body.classList.remove('pointer-ready', 'cursor-action', 'cursor-terminal', 'cursor-card')
+        setPulses([])
+      }
+    }
+    update()
+    if (typeof MutationObserver === 'undefined') return undefined
+    const observer = new MutationObserver(update)
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const update = () => {
+      const visible = document.visibilityState === 'visible'
+      setPageVisible(visible)
+      if (!visible) document.body.classList.remove('pointer-ready')
+    }
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  useEffect(() => {
+    if (reduced || !fine || qrOpen) return undefined
     const onOver = (event: PointerEvent) => {
       const target = (event.target as HTMLElement | null)?.closest?.('a,button,.terminal,.deploy-terminal,.dossier,.track-row,.album')
       if (!target) return
@@ -529,12 +595,13 @@ export function PointerGlow() {
       document.removeEventListener('pointerover', onOver)
       document.removeEventListener('pointerout', onOut)
     }
-  }, [reduced, fine])
+  }, [reduced, fine, qrOpen])
 
   useEffect(() => {
-    if (reduced || !fine) return undefined
+    if (reduced || !fine || qrOpen) return undefined
     const timers = new Set<number>()
     const unsubscribe = subscribePointerDown((event) => {
+      if (isNetworkPulseInteraction(event.target)) return
       const id = nextPulse.current++
       setPulses((current) => [...current, { id, x: event.clientX, y: event.clientY }].slice(-3))
       const timer = window.setTimeout(() => {
@@ -547,28 +614,34 @@ export function PointerGlow() {
       unsubscribe()
       timers.forEach((timer) => window.clearTimeout(timer))
     }
-  }, [reduced])
+  }, [reduced, fine, qrOpen])
 
-  useRafLoop(({ pointer }) => {
-    if (!pointerRef.current || !reticleRef.current || !coordinateRef.current) return
-    if (!pointer.active) return
-    document.body.classList.add('pointer-ready')
-    const pointerEl = pointerRef.current
-    const reticleEl = reticleRef.current
-    pointerEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(45deg)`
-    reticleEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(${45 + clamp(pointer.velocityX * 0.65, -18, 18)}deg)`
-    coordinateRef.current.style.transform = `translate3d(${pointer.x + 27}px, ${pointer.y + 24}px, 0)`
-    coordinateRef.current.textContent = `X${String(Math.round(pointer.targetX)).padStart(4, '0')} / Y${String(Math.round(pointer.targetY)).padStart(4, '0')}`
-    historyRef.current.unshift({ x: pointer.x, y: pointer.y })
-    historyRef.current.length = 24
-    trailRefs.current.forEach((element, index) => {
-      const point = historyRef.current[Math.min(historyRef.current.length - 1, Math.round((index + 1) * 3))]
-      element.style.opacity = `${Math.max(0.05, 0.35 - index * 0.05)}`
-      element.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) rotate(45deg) scale(${1 - index * 0.08})`
-    })
-  }, !reduced && fine)
+  useEffect(() => {
+    if (reduced || !fine || qrOpen || !pageVisible) return undefined
+    return subscribeMotion(({ pointer }) => {
+      if (!pointerRef.current || !reticleRef.current || !coordinateRef.current) return
+      if (!pointer.active) {
+        document.body.classList.remove('pointer-ready')
+        return
+      }
+      document.body.classList.add('pointer-ready')
+      const pointerEl = pointerRef.current
+      const reticleEl = reticleRef.current
+      pointerEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(45deg)`
+      reticleEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(${45 + clamp(pointer.velocityX * 0.65, -18, 18)}deg)`
+      coordinateRef.current.style.transform = `translate3d(${pointer.x + 27}px, ${pointer.y + 24}px, 0)`
+      coordinateRef.current.textContent = `X${String(Math.round(pointer.targetX)).padStart(4, '0')} / Y${String(Math.round(pointer.targetY)).padStart(4, '0')}`
+      historyRef.current.unshift({ x: pointer.x, y: pointer.y })
+      historyRef.current.length = 24
+      trailRefs.current.forEach((element, index) => {
+        const point = historyRef.current[Math.min(historyRef.current.length - 1, Math.round((index + 1) * 3))]
+        element.style.opacity = `${Math.max(0.05, 0.35 - index * 0.05)}`
+        element.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) rotate(45deg) scale(${1 - index * 0.08})`
+      })
+    }, { continuous: false })
+  }, [reduced, fine, qrOpen, pageVisible])
 
-  if (reduced || !fine) return null
+  if (reduced || !fine || qrOpen) return null
   return (
     <>
       <div className="pointer-glow" aria-hidden="true" />

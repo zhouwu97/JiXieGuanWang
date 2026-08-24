@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { clamp } from '../motion/motionMath'
 import { useRafLoop } from '../motion/useRafLoop'
 import { useReducedMotion } from '../motion/useReducedMotion'
+import { shouldAnimateRoute } from '../motion/routeMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
 
 interface RouteStage {
@@ -42,8 +43,30 @@ export function RouteSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
+  const [visible, setVisible] = useState(true)
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  )
 
-  useRafLoop(({ time }) => {
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section || typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(
+      (entries) => setVisible(entries[0]?.isIntersecting ?? false),
+      { rootMargin: '120px 0px' },
+    )
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState === 'visible')
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  useRafLoop(() => {
     const section = sectionRef.current
     const grid = gridRef.current
     if (!section || !grid) return
@@ -51,9 +74,13 @@ export function RouteSection() {
       ? 1
       : clamp((window.innerHeight * 0.78 - grid.getBoundingClientRect().top) / (window.innerHeight * 0.72), 0, 1)
     grid.style.setProperty('--route-progress', progress.toFixed(3))
-    if (reduced) grid.style.setProperty('--route-time', '0')
-    else grid.style.setProperty('--route-time', String(time))
-  }, !reduced)
+  }, shouldAnimateRoute(reduced, visible, pageVisible))
+
+  useEffect(() => {
+    if (!reduced) return undefined
+    gridRef.current?.style.setProperty('--route-progress', '1')
+    return undefined
+  }, [reduced])
 
   return (
     <section id="route" ref={sectionRef} className="section route">

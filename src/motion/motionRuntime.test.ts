@@ -59,4 +59,35 @@ describe('motion runtime 生命周期', () => {
     unsubscribePointerDown()
     expect(removeEventListener).toHaveBeenCalledWith('pointermove', expect.any(Function))
   })
+
+  it('响应式订阅只在唤醒后运行到稳定，不保持无限 RAF', () => {
+    const callbacks: FrameRequestCallback[] = []
+    const request = vi.fn((callback: FrameRequestCallback) => {
+      callbacks.push(callback)
+      return callbacks.length
+    })
+    vi.stubGlobal('requestAnimationFrame', request)
+    const unsubscribe = subscribeMotion(() => undefined, { continuous: false })
+
+    expect(request).toHaveBeenCalledTimes(1)
+    callbacks.shift()?.(16)
+    expect(request).toHaveBeenCalledTimes(1)
+
+    unsubscribe()
+  })
+
+  it('连续订阅会保持 RAF，取消后停止', () => {
+    const callbacks: FrameRequestCallback[] = []
+    const request = vi.fn((callback: FrameRequestCallback) => {
+      callbacks.push(callback)
+      return callbacks.length
+    })
+    vi.stubGlobal('requestAnimationFrame', request)
+    const unsubscribe = subscribeMotion(() => undefined)
+
+    callbacks.shift()?.(16)
+    expect(request).toHaveBeenCalledTimes(2)
+    unsubscribe()
+    expect(vi.mocked(cancelAnimationFrame)).toHaveBeenCalled()
+  })
 })

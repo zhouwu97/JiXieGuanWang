@@ -7,6 +7,6 @@ export function useRafLoop(callback: (frame: MotionFrame) => void, enabled = tru
 
   useEffect(() => {
     if (!enabled) return undefined
-    return subscribeMotion((frame) => callbackRef.current(frame))
+    return subscribeMotion((frame) => callbackRef.current(frame), { continuous: true })
   }, [enabled])
 }

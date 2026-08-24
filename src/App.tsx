@@ -11,6 +11,7 @@ import { BriefingSection } from './components/Briefing'
 import { JoinSection } from './components/Join'
 import { usePointerMotion } from './motion/usePointerMotion'
 import { useScrollProgress } from './motion/useScrollProgress'
+import { getActiveSection } from './motion/sectionNavigation'
 import './styles.css'
 
 const sectionIds = ['home', 'paths', 'route', 'field', 'activities', 'notice', 'join'] as const
@@ -22,16 +23,44 @@ function App() {
   const [activeSection, setActiveSection] = useState<string>('home')
 
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return
     const sections = sectionIds
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null)
-    const observer = new IntersectionObserver(
-      (entries) => entries.forEach((entry) => entry.isIntersecting && setActiveSection(entry.target.id)),
-      { rootMargin: '-38% 0px -52% 0px', threshold: 0 },
-    )
-    sections.forEach((section) => observer.observe(section))
-    return () => observer.disconnect()
+    let frame: number | null = null
+    const update = () => {
+      frame = null
+      const headerHeight = document.querySelector<HTMLElement>('.site-header')?.getBoundingClientRect().height ?? 0
+      const referenceY = headerHeight + window.innerHeight * 0.2
+      const active = getActiveSection(
+        sections.map((section) => {
+          const rect = section.getBoundingClientRect()
+          return { id: section.id, top: rect.top, bottom: rect.bottom }
+        }),
+        referenceY,
+      )
+      if (active) setActiveSection((current) => current === active ? current : active)
+    }
+    const schedule = () => {
+      if (frame !== null) return
+      if (typeof window.requestAnimationFrame !== 'function') {
+        update()
+        return
+      }
+      frame = window.requestAnimationFrame(update)
+    }
+    const observer = typeof IntersectionObserver === 'undefined'
+      ? null
+      : new IntersectionObserver(() => schedule(), { rootMargin: '120px 0px', threshold: 0 })
+    sections.forEach((section) => observer?.observe(section))
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule, { passive: true })
+    schedule()
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
   }, [])
 
   return (

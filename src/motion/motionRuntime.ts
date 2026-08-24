@@ -30,6 +30,11 @@ export interface MotionFrame {
 type FrameListener = (frame: MotionFrame) => void
 type PointerDownListener = (event: PointerEvent) => void
 
+export interface MotionSubscriptionOptions {
+  /** 连续动效订阅会让运行时保持 RAF；指针/滚动等响应式订阅只在唤醒后运行到状态稳定。 */
+  continuous?: boolean
+}
+
 const pointer: PointerSnapshot = {
   targetX: 0,
   targetY: 0,
@@ -46,6 +51,7 @@ const pointer: PointerSnapshot = {
 
 const scroll: ScrollSnapshot = { y: 0, velocity: 0, progress: 0 }
 const frameListeners = new Set<FrameListener>()
+const continuousListeners = new Set<FrameListener>()
 const pointerDownListeners = new Set<PointerDownListener>()
 let raf = 0
 let lastTime = 0
@@ -55,6 +61,18 @@ let lastScrollY = 0
 let lastScrollTime = 0
 let pointerInitialized = false
 let runtimeListening = false
+
+function hasSettlingMotion() {
+  return Math.abs(pointer.targetX - pointer.x) > 0.05
+    || Math.abs(pointer.targetY - pointer.y) > 0.05
+    || Math.abs(pointer.velocityX) > 0.01
+    || Math.abs(pointer.velocityY) > 0.01
+    || Math.abs(scroll.velocity) > 0.005
+}
+
+function scheduleFrame() {
+  if (!raf && frameListeners.size > 0) raf = requestAnimationFrame(frame)
+}
 
 function updateFinePointer() {
   pointer.fine = typeof window !== 'undefined'
@@ -80,10 +98,12 @@ function onPointerMove(event: PointerEvent) {
   pointer.targetX = event.clientX
   pointer.targetY = event.clientY
   pointer.active = true
+  scheduleFrame()
 }
 
 function onPointerLeave() {
   pointer.active = false
+  scheduleFrame()
 }
 
 function onPointerDown(event: PointerEvent) {
@@ -92,11 +112,13 @@ function onPointerDown(event: PointerEvent) {
 
 function onScroll() {
   updateScroll()
+  scheduleFrame()
 }
 
 function onResize() {
   updateFinePointer()
   updateScroll()
+  scheduleFrame()
 }
 
 function frame(time: number) {
@@ -132,7 +154,7 @@ function frame(time: number) {
   lastScrollY = scroll.y
   lastScrollTime = time
 
-  if (frameListeners.size > 0) raf = requestAnimationFrame(frame)
+  if (continuousListeners.size > 0 || hasSettlingMotion()) scheduleFrame()
 }
 
 function ensureRuntime() {
@@ -147,7 +169,7 @@ function ensureRuntime() {
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onResize, { passive: true })
   }
-  if (!raf && frameListeners.size > 0) raf = requestAnimationFrame(frame)
+  if (continuousListeners.size > 0) scheduleFrame()
 }
 
 function releaseRuntime() {
@@ -161,15 +183,19 @@ function releaseRuntime() {
   window.removeEventListener('resize', onResize)
   if (raf) cancelAnimationFrame(raf)
   raf = 0
+  continuousListeners.clear()
   pointer.active = false
   pointerInitialized = false
 }
 
-export function subscribeMotion(listener: FrameListener) {
+export function subscribeMotion(listener: FrameListener, options: MotionSubscriptionOptions = {}) {
   frameListeners.add(listener)
+  if (options.continuous !== false) continuousListeners.add(listener)
   ensureRuntime()
+  if (options.continuous === false) scheduleFrame()
   return () => {
     frameListeners.delete(listener)
+    continuousListeners.delete(listener)
     releaseRuntime()
   }
 }

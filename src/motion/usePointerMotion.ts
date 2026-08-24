@@ -18,7 +18,7 @@ export function usePointerMotion() {
       root.style.setProperty('--pointer-nx', frame.pointer.normalizedX.toFixed(4))
       root.style.setProperty('--pointer-ny', frame.pointer.normalizedY.toFixed(4))
       root.style.setProperty('--pointer-speed', Math.min(1, frame.pointer.speed / 32).toFixed(3))
-    })
+    }, { continuous: false })
   }, [reduced, fine])
 
   return snapshotRef
