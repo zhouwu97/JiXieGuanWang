@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { clamp } from '../motion/motionMath'
 import { getPointerSnapshot, subscribePointerDown } from '../motion/motionRuntime'
+import { isNetworkPulseInteraction, shouldAnimateNetwork } from '../motion/networkMotion'
 import { useRafLoop } from '../motion/useRafLoop'
 import { useMediaQuery } from '../motion/useMediaQuery'
 import { useReducedMotion } from '../motion/useReducedMotion'
@@ -169,8 +170,34 @@ interface NetworkNode {
 export function Network({ label = '信号网络可视化' }: { label?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<{ render: (time: number) => void; addPulse: (x: number, y: number) => void } | null>(null)
+  const boundsRef = useRef({ left: 0, top: 0, width: 0, height: 0 })
   const reduced = useReducedMotion()
   const fine = useMediaQuery('(pointer: fine)')
+  const [visible, setVisible] = useState(true)
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  )
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState === 'visible')
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const host = canvas?.parentElement
+    if (!canvas || !host) return undefined
+    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('jsdom')) return undefined
+    if (typeof IntersectionObserver === 'undefined') return undefined
+    const observer = new IntersectionObserver(
+      (entries) => setVisible(entries[0]?.isIntersecting ?? false),
+      { rootMargin: '120px 0px' },
+    )
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -184,6 +211,16 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     let height = 0
     let nodes: NetworkNode[] = []
     const pulses: { x: number; y: number; radius: number; alpha: number }[] = []
+
+    const syncCanvasBounds = () => {
+      const bounds = canvas.getBoundingClientRect()
+      boundsRef.current = {
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+      }
+    }
 
     const seed = () => {
       const count = width < 700 ? 34 : Math.min(88, Math.max(55, Math.floor((width * height) / 15000)))
@@ -209,12 +246,13 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
       const bounds = host.getBoundingClientRect()
       width = Math.max(320, bounds.width)
       height = Math.max(320, bounds.height)
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.75)
       canvas.width = Math.floor(width * dpr)
       canvas.height = Math.floor(height * dpr)
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
+      syncCanvasBounds()
       seed()
     }
 
@@ -231,7 +269,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     const render = (time: number) => {
       context.clearRect(0, 0, width, height)
       const pointer = getPointerSnapshot()
-      const bounds = canvas.getBoundingClientRect()
+      const bounds = boundsRef.current
       const px = pointer.targetX - bounds.left
       const py = pointer.targetY - bounds.top
 
@@ -330,6 +368,8 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     resize()
     const observer = 'ResizeObserver' in window ? new ResizeObserver(resize) : null
     observer?.observe(host)
+    window.addEventListener('scroll', syncCanvasBounds, { passive: true })
+    window.addEventListener('resize', syncCanvasBounds, { passive: true })
 
     sceneRef.current = {
       render,
@@ -343,21 +383,26 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     return () => {
       sceneRef.current = null
       observer?.disconnect()
+      window.removeEventListener('scroll', syncCanvasBounds)
+      window.removeEventListener('resize', syncCanvasBounds)
     }
-  }, [reduced])
+  }, [])
 
   useRafLoop(
     ({ time }) => sceneRef.current?.render(time),
-    !reduced,
+    shouldAnimateNetwork(reduced, visible, pageVisible),
   )
 
   useEffect(() => {
     if (reduced || !fine) return undefined
     return subscribePointerDown((event) => {
+      if (isNetworkPulseInteraction(event.target)) return
       const canvas = canvasRef.current
       if (!canvas) return
-      const bounds = canvas.getBoundingClientRect()
-      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return
+      const bounds = boundsRef.current
+      const right = bounds.left + bounds.width
+      const bottom = bounds.top + bounds.height
+      if (event.clientX < bounds.left || event.clientX > right || event.clientY < bounds.top || event.clientY > bottom) return
       sceneRef.current?.addPulse(event.clientX - bounds.left, event.clientY - bounds.top)
     })
   }, [reduced, fine])

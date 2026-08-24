@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { associationMeta, getTrackById, tracks } from '../data/tracks'
 import { CountUp, GlitchText, LiveClock, Network, Ticker } from './common'
-import { clamp } from '../motion/motionMath'
+import { calculateHeroProgress, isHeroParallaxEnabled } from '../motion/motionMath'
 import { useRafLoop } from '../motion/useRafLoop'
 import { useMediaQuery } from '../motion/useMediaQuery'
 import { useReducedMotion } from '../motion/useReducedMotion'
@@ -51,7 +51,7 @@ export function Hero() {
   const mobile = useMediaQuery('(max-width: 760px)', false)
 
   const triggerGlitch = useCallback(() => {
-    if (reduced || glitchBusy.current) return
+    if (reduced || glitchBusy.current || document.visibilityState === 'hidden') return
     glitchBusy.current = true
     setGlitching(true)
     glitchEndTimer.current = window.setTimeout(() => {
@@ -62,7 +62,10 @@ export function Hero() {
 
   useEffect(() => {
     if (reduced) return undefined
-    const first = window.setTimeout(triggerGlitch, 1000)
+    const triggerWhenVisible = () => {
+      if (document.visibilityState === 'visible') triggerGlitch()
+    }
+    const first = window.setTimeout(triggerWhenVisible, 1000)
     let timer = 0
     const schedule = () => {
       timer = window.setTimeout(() => {
@@ -84,15 +87,14 @@ export function Hero() {
       if (reduced) return
       const hero = heroRef.current
       if (!hero) return
-      const travel = Math.max(1, hero.offsetHeight - window.innerHeight)
-      const progress = clamp(-hero.getBoundingClientRect().top / travel, 0, 1)
+      const progress = calculateHeroProgress(hero.getBoundingClientRect().top, window.innerHeight)
       if (innerRef.current) innerRef.current.style.opacity = (1 - progress * 0.78).toFixed(3)
       if (copyRef.current) copyRef.current.style.transform = `translate3d(${-progress * 18}px, ${-progress * 72}px, 0)`
       if (sideRef.current) sideRef.current.style.transform = `translate3d(${progress * 28}px, ${-progress * 38}px, 0) scale(${1 + progress * 0.025})`
       if (terminalRef.current) terminalRef.current.style.transform = `perspective(1000px) rotateY(${-progress * 3}deg) rotateX(${progress * 1.5}deg)`
       if (ghostRef.current) ghostRef.current.style.transform = `translate3d(${-progress * 95}px, ${progress * 14}px, 0)`
     },
-    !reduced && !mobile,
+    isHeroParallaxEnabled(reduced, mobile),
   )
 
   return (
