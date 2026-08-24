@@ -1,6 +1,9 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { associationMeta, getTrackById, tracks } from '../data/tracks'
 import { CountUp, GlitchText, LiveClock, Network, Ticker } from './common'
+import { clamp } from '../motion/motionMath'
+import { useRafLoop } from '../motion/useRafLoop'
+import { useReducedMotion } from '../motion/useReducedMotion'
 
 const assetBase = import.meta.env.BASE_URL
 
@@ -36,40 +39,66 @@ export function Hero() {
   const seatCount = getTrackById('ai-fullstack')?.projectOpportunity?.length ?? 0
   const innerRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLSpanElement>(null)
+  const heroRef = useRef<HTMLElement>(null)
+  const copyRef = useRef<HTMLDivElement>(null)
+  const sideRef = useRef<HTMLDivElement>(null)
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const [glitching, setGlitching] = useState(false)
+  const glitchBusy = useRef(false)
+  const glitchEndTimer = useRef<number | null>(null)
+  const reduced = useReducedMotion()
+  const mobile = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches
+
+  const triggerGlitch = useCallback(() => {
+    if (reduced || glitchBusy.current) return
+    glitchBusy.current = true
+    setGlitching(true)
+    glitchEndTimer.current = window.setTimeout(() => {
+      glitchBusy.current = false
+      setGlitching(false)
+    }, 500)
+  }, [reduced])
 
   useEffect(() => {
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return
+    if (reduced) return undefined
+    const first = window.setTimeout(triggerGlitch, 1000)
+    let timer = 0
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        const rect = heroRef.current?.getBoundingClientRect()
+        if (document.visibilityState === 'visible' && rect && rect.bottom > 0 && rect.top < window.innerHeight) triggerGlitch()
+        schedule()
+      }, 4500 + Math.random() * 2500)
     }
-    let raf = 0
-    const onScroll = () => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        const viewport = window.innerHeight || 720
-        const progress = Math.min(1, Math.max(0, window.scrollY / viewport))
-        if (innerRef.current) {
-          innerRef.current.style.opacity = (1 - progress * 0.85).toFixed(3)
-          innerRef.current.style.transform = `translateY(${(-progress * 56).toFixed(1)}px)`
-        }
-        if (ghostRef.current) {
-          ghostRef.current.style.transform = `translateX(${(-progress * 52).toFixed(1)}px)`
-        }
-      })
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    schedule()
     return () => {
-      window.removeEventListener('scroll', onScroll)
-      if (raf) window.cancelAnimationFrame(raf)
+      window.clearTimeout(first)
+      window.clearTimeout(timer)
+      if (glitchEndTimer.current !== null) window.clearTimeout(glitchEndTimer.current)
     }
-  }, [])
+  }, [reduced, triggerGlitch])
+
+  useRafLoop(
+    () => {
+      if (reduced) return
+      const hero = heroRef.current
+      if (!hero) return
+      const travel = Math.max(1, hero.offsetHeight - window.innerHeight)
+      const progress = clamp(-hero.getBoundingClientRect().top / travel, 0, 1)
+      if (innerRef.current) innerRef.current.style.opacity = (1 - progress * 0.78).toFixed(3)
+      if (copyRef.current) copyRef.current.style.transform = `translate3d(${-progress * 18}px, ${-progress * 72}px, 0)`
+      if (sideRef.current) sideRef.current.style.transform = `translate3d(${progress * 28}px, ${-progress * 38}px, 0) scale(${1 + progress * 0.025})`
+      if (terminalRef.current) terminalRef.current.style.transform = `perspective(1000px) rotateY(${-progress * 3}deg) rotateX(${progress * 1.5}deg)`
+      if (ghostRef.current) ghostRef.current.style.transform = `translate3d(${-progress * 95}px, ${progress * 14}px, 0)`
+    },
+    !reduced && !mobile,
+  )
 
   return (
-    <section id="home" className="hero">
+    <section id="home" ref={heroRef} className="hero">
       <Network label="信号网络可视化" />
       <div className="hero-inner" ref={innerRef}>
-        <div className="hero-copy">
+        <div className="hero-copy" ref={copyRef}>
           <p className="hero-eyebrow">
             <img
               className="hero-eyebrow__logo"
@@ -85,7 +114,7 @@ export function Hero() {
           <h1>
             <span className="hero-top">SHENYANG LIGONG UNIVERSITY</span>
             <span className="hero-cn">
-              <GlitchText text="计算机协会" />
+              <GlitchText text="计算机协会" active={glitching} onPointerEnter={triggerGlitch} />
             </span>
             <span className="hero-en" aria-hidden="true">
               COMPUTER SOCIETY
@@ -107,8 +136,8 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="hero-side">
-          <div className="terminal" aria-label="招新协议终端">
+        <div className="hero-side" ref={sideRef}>
+          <div className="terminal" ref={terminalRef} aria-label="招新协议终端">
             <div className="terminal__bar" aria-hidden="true">
               <i />
               <i />
@@ -128,7 +157,7 @@ export function Hero() {
                     } as CSSProperties
                   }
                 >
-                  <span className="typed" aria-hidden="true">
+                  <span className="typed">
                     {line.text}
                   </span>
                 </p>

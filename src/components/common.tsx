@@ -3,9 +3,12 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { clamp } from '../motion/motionMath'
+import { getPointerSnapshot, subscribePointerDown } from '../motion/motionRuntime'
+import { useRafLoop } from '../motion/useRafLoop'
+import { useReducedMotion } from '../motion/useReducedMotion'
 
 export function Reveal({
   children,
@@ -60,9 +63,23 @@ export function SectionTag({ number, en, label }: { number: string; en: string; 
   )
 }
 
-export function GlitchText({ text }: { text: string }) {
+export function GlitchText({
+  text,
+  active = false,
+  className = '',
+  onPointerEnter,
+}: {
+  text: string
+  active?: boolean
+  className?: string
+  onPointerEnter?: () => void
+}) {
   return (
-    <span className="glitch" data-glitch={text}>
+    <span
+      className={`glitch${active ? ' is-glitching' : ''}${className ? ` ${className}` : ''}`}
+      data-glitch={text}
+      onPointerEnter={onPointerEnter}
+    >
       {text}
     </span>
   )
@@ -95,16 +112,26 @@ export function Ticker({
 export function CountUp({ to, duration = 1.4 }: { to: number; duration?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const started = useRef(false)
+  const startedAt = useRef<number | null>(null)
   const [value, setValue] = useState('00')
+  const reduced = useReducedMotion()
+
+  useRafLoop(
+    ({ time }) => {
+      if (startedAt.current === null) return
+      const progress = Math.min(1, (time - startedAt.current) / (duration * 1000))
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(String(Math.round(to * eased)).padStart(2, '0'))
+      if (progress >= 1) startedAt.current = null
+    },
+    !reduced,
+  )
 
   useEffect(() => {
     const node = ref.current
     if (!node) return
     const finish = () => setValue(String(to).padStart(2, '0'))
-    if (
-      typeof IntersectionObserver === 'undefined' ||
-      (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
-    ) {
+    if (typeof IntersectionObserver === 'undefined' || reduced) {
       finish()
       return undefined
     }
@@ -114,20 +141,13 @@ export function CountUp({ to, duration = 1.4 }: { to: number; duration?: number 
           if (!entry.isIntersecting || started.current) return
           started.current = true
           observer.disconnect()
-          const begin = performance.now()
-          const tick = (now: number) => {
-            const progress = Math.min(1, (now - begin) / (duration * 1000))
-            const eased = 1 - Math.pow(1 - progress, 3)
-            setValue(String(Math.round(to * eased)).padStart(2, '0'))
-            if (progress < 1) requestAnimationFrame(tick)
-          }
-          requestAnimationFrame(tick)
+          startedAt.current = performance.now()
         }),
       { threshold: 0.4 },
     )
     observer.observe(node)
     return () => observer.disconnect()
-  }, [to, duration])
+  }, [to, duration, reduced])
 
   return <span ref={ref}>{value}</span>
 }
@@ -135,23 +155,21 @@ export function CountUp({ to, duration = 1.4 }: { to: number; duration?: number 
 interface NetworkNode {
   x: number
   y: number
+  homeX: number
+  homeY: number
+  vx: number
+  vy: number
   phase: number
   size: number
-  amber: boolean
+  hot: boolean
+  influence: number
 }
 
 export function Network({ label = '信号网络可视化' }: { label?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pointerRef = useRef({ x: 0.6, y: 0.4, active: false })
-
-  const setPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect()
-    pointerRef.current = {
-      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
-      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
-      active: true,
-    }
-  }
+  const sceneRef = useRef<{ render: (time: number) => void; addPulse: (x: number, y: number) => void } | null>(null)
+  const reduced = useReducedMotion()
+  const fine = typeof matchMedia !== 'function' || matchMedia('(pointer: fine)').matches
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -161,23 +179,29 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
     const host = canvas.parentElement
     if (!context || !host) return
 
-    const reduced =
-      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
     let width = 0
     let height = 0
-    let frame = 0
     let nodes: NetworkNode[] = []
+    const pulses: { x: number; y: number; radius: number; alpha: number }[] = []
 
     const seed = () => {
-      const count = Math.max(48, Math.floor((width * height) / 13000))
+      const count = width < 700 ? 34 : Math.min(88, Math.max(55, Math.floor((width * height) / 15000)))
       nodes = Array.from({ length: count }, (_, index) => ({
-        x: Math.random(),
-        y: Math.random(),
+        x: Math.random() * width,
+        y: Math.random() * height,
+        homeX: 0,
+        homeY: 0,
+        vx: (Math.random() - 0.5) * 0.17,
+        vy: (Math.random() - 0.5) * 0.17,
         phase: (index * 0.71) % (Math.PI * 2),
-        size: 1.6 + Math.random() * 2.2,
-        amber: index % 13 === 0,
+        size: 1.3 + Math.random() * 2.6,
+        hot: index % 12 === 0,
+        influence: 0,
       }))
+      nodes.forEach((node) => {
+        node.homeX = node.x
+        node.homeY = node.y
+      })
     }
 
     const resize = () => {
@@ -205,26 +229,50 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
 
     const render = (time: number) => {
       context.clearRect(0, 0, width, height)
-      const pointer = pointerRef.current
-      const px = pointer.x * width
-      const py = pointer.y * height
+      const pointer = getPointerSnapshot()
+      const bounds = canvas.getBoundingClientRect()
+      const px = pointer.targetX - bounds.left
+      const py = pointer.targetY - bounds.top
 
       for (let i = 0; i < nodes.length; i += 1) {
         const node = nodes[i]
-        const x = node.x * width + Math.sin(time * 0.00022 + node.phase) * 5
-        const y = node.y * height + Math.cos(time * 0.00019 + node.phase) * 5
-        const influence = pointer.active
-          ? Math.max(0, 1 - Math.hypot(x - px, y - py) / 190)
-          : 0
+        const homeX = node.homeX + Math.sin(time * 0.00022 + node.phase) * 4
+        const homeY = node.homeY + Math.cos(time * 0.00019 + node.phase) * 4
+        node.vx += (homeX - node.x) * 0.000018
+        node.vy += (homeY - node.y) * 0.000018
+        const x = node.x
+        const y = node.y
+        const distance = Math.hypot(x - px, y - py)
+        const influence = pointer.active && pointer.fine ? clamp(1 - distance / 285, 0, 1) : 0
+        if (influence > 0) {
+          const safeDistance = Math.max(distance, 18)
+          const force = distance < 80 ? (1 - distance / 80) * 0.024 : -influence * 0.0028
+          node.vx += ((x - px) / safeDistance) * force
+          node.vy += ((y - py) / safeDistance) * force
+        }
+        node.vx *= 0.991
+        node.vy *= 0.991
+        node.x += node.vx
+        node.y += node.vy
+        if (node.x < 10 || node.x > width - 10) node.vx *= -0.9
+        if (node.y < 10 || node.y > height - 10) node.vy *= -0.9
+        node.x = clamp(node.x, 5, width - 5)
+        node.y = clamp(node.y, 5, height - 5)
+        node.influence = influence
 
         for (let j = i + 1; j < nodes.length; j += 1) {
           const other = nodes[j]
-          const x2 = other.x * width + Math.sin(time * 0.00022 + other.phase) * 5
-          const y2 = other.y * height + Math.cos(time * 0.00019 + other.phase) * 5
+          const x2 = other.x
+          const y2 = other.y
           const distance = Math.hypot(x - x2, y - y2)
-          if (distance < 92) {
-            context.strokeStyle = `rgba(26, 32, 39, ${((1 - distance / 92) * 0.13 + influence * 0.12).toFixed(3)})`
-            context.lineWidth = 0.6
+          const local = Math.max(influence, other.influence)
+          const limit = local > 0.08 ? 142 : 102
+          if (distance < limit) {
+            const alpha = (1 - distance / limit) * (0.105 + local * 0.25)
+            context.strokeStyle = local > 0.38
+              ? `rgba(216, 67, 31, ${(alpha * 0.72).toFixed(3)})`
+              : `rgba(74, 90, 99, ${alpha.toFixed(3)})`
+            context.lineWidth = 0.55 + local * 0.55
             context.beginPath()
             context.moveTo(x, y)
             context.lineTo(x2, y2)
@@ -235,10 +283,16 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
         context.save()
         context.translate(x, y)
         context.rotate(Math.PI / 4)
-        const radius = node.size + influence * 2.2
-        context.fillStyle = node.amber ? '#D8431F' : '#4E5A63'
-        context.globalAlpha = node.amber ? 0.9 : Math.min(0.8, 0.42 + influence * 0.5)
+        const radius = node.size + influence * 2.8
+        context.fillStyle = node.hot || influence > 0.5 ? '#D8431F' : '#59656D'
+        context.globalAlpha = node.hot ? 0.88 : clamp(0.28 + influence * 0.62, 0.28, 0.86)
         context.fillRect(-radius, -radius, radius * 2, radius * 2)
+        if (influence > 0.58) {
+          context.globalAlpha = (influence - 0.58) * 1.2
+          context.strokeStyle = '#D8431F'
+          context.lineWidth = 0.8
+          context.strokeRect(-radius - 5, -radius - 5, (radius + 5) * 2, (radius + 5) * 2)
+        }
         context.restore()
       }
 
@@ -257,38 +311,61 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
       context.strokeStyle = 'rgba(26, 32, 39, 0.09)'
       diamond(0, 0, 76)
       context.restore()
+
+      pulses.forEach((pulse) => {
+        pulse.radius += 5.5
+        pulse.alpha *= 0.948
+        context.save()
+        context.translate(pulse.x, pulse.y)
+        context.rotate(Math.PI / 4)
+        context.strokeStyle = `rgba(216, 67, 31, ${pulse.alpha})`
+        context.lineWidth = 1
+        context.strokeRect(-pulse.radius, -pulse.radius, pulse.radius * 2, pulse.radius * 2)
+        context.restore()
+      })
+      pulses.splice(0, pulses.length, ...pulses.filter((pulse) => pulse.alpha > 0.035))
     }
 
     resize()
     const observer = 'ResizeObserver' in window ? new ResizeObserver(resize) : null
     observer?.observe(host)
 
-    if (reduced) {
-      render(0)
-    } else {
-      const loop = (time: number) => {
-        render(time)
-        frame = requestAnimationFrame(loop)
-      }
-      frame = requestAnimationFrame(loop)
+    sceneRef.current = {
+      render,
+      addPulse: (x, y) => {
+        pulses.push({ x, y, radius: 0, alpha: 0.8 })
+        pulses.splice(0, Math.max(0, pulses.length - 3))
+      },
     }
+    render(0)
 
     return () => {
+      sceneRef.current = null
       observer?.disconnect()
-      window.cancelAnimationFrame(frame)
     }
-  }, [])
+  }, [reduced])
+
+  useRafLoop(
+    ({ time }) => sceneRef.current?.render(time),
+    !reduced,
+  )
+
+  useEffect(() => {
+    if (reduced || !fine) return undefined
+    return subscribePointerDown((event) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const bounds = canvas.getBoundingClientRect()
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return
+      sceneRef.current?.addPulse(event.clientX - bounds.left, event.clientY - bounds.top)
+    })
+  }, [reduced, fine])
 
   return (
     <canvas
       ref={canvasRef}
       className="network-canvas"
       aria-label={label}
-      onPointerMove={setPointer}
-      onPointerDown={setPointer}
-      onPointerLeave={() => {
-        pointerRef.current.active = false
-      }}
     />
   )
 }
@@ -376,33 +453,95 @@ export function LiveClock() {
 }
 
 export function PointerGlow() {
-  const ref = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
+  const fine = typeof matchMedia !== 'function' || matchMedia('(pointer: fine)').matches
+  const pointerRef = useRef<HTMLDivElement>(null)
+  const reticleRef = useRef<HTMLDivElement>(null)
+  const coordinateRef = useRef<HTMLSpanElement>(null)
+  const trailRefs = useRef<HTMLSpanElement[]>([])
+  const historyRef = useRef(Array.from({ length: 7 }, () => ({ x: 0, y: 0 })))
+  const [pulses, setPulses] = useState<{ id: number; x: number; y: number }[]>([])
+  const nextPulse = useRef(0)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return undefined
-    if (
-      typeof matchMedia === 'function' &&
-      (matchMedia('(prefers-reduced-motion: reduce)').matches ||
-        matchMedia('(pointer: coarse)').matches)
-    ) {
-      return undefined
+    if (reduced || (typeof matchMedia === 'function' && !matchMedia('(pointer: fine)').matches)) return undefined
+    document.body.classList.add('pointer-ready')
+    const onOver = (event: PointerEvent) => {
+      const target = (event.target as HTMLElement | null)?.closest?.('a,button,.terminal,.deploy-terminal,.dossier,.track-row,.album')
+      if (!target) return
+      document.body.classList.toggle('cursor-action', target.matches('a,button'))
+      document.body.classList.toggle('cursor-terminal', target.matches('.terminal,.deploy-terminal'))
+      document.body.classList.toggle('cursor-card', target.matches('.dossier,.track-row,.album'))
     }
-    let raf = 0
-    const onMove = (event: globalThis.PointerEvent) => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        el.style.setProperty('--px', `${event.clientX}px`)
-        el.style.setProperty('--py', `${event.clientY}px`)
-      })
+    const onOut = (event: PointerEvent) => {
+      if ((event.relatedTarget as HTMLElement | null)?.closest?.('a,button,.terminal,.deploy-terminal,.dossier,.track-row,.album')) return
+      document.body.classList.remove('cursor-action', 'cursor-terminal', 'cursor-card')
     }
-    window.addEventListener('pointermove', onMove, { passive: true })
+    document.addEventListener('pointerover', onOver, { passive: true })
+    document.addEventListener('pointerout', onOut, { passive: true })
     return () => {
-      window.removeEventListener('pointermove', onMove)
-      if (raf) window.cancelAnimationFrame(raf)
+      document.body.classList.remove('pointer-ready', 'cursor-action', 'cursor-terminal', 'cursor-card')
+      document.removeEventListener('pointerover', onOver)
+      document.removeEventListener('pointerout', onOut)
     }
-  }, [])
+  }, [reduced])
 
-  return <div ref={ref} className="pointer-glow" aria-hidden="true" />
+  useEffect(() => {
+    if (reduced || !fine) return undefined
+    const timers = new Set<number>()
+    const unsubscribe = subscribePointerDown((event) => {
+      const id = nextPulse.current++
+      setPulses((current) => [...current, { id, x: event.clientX, y: event.clientY }].slice(-3))
+      const timer = window.setTimeout(() => {
+        setPulses((current) => current.filter((pulse) => pulse.id !== id))
+        timers.delete(timer)
+      }, 720)
+      timers.add(timer)
+    })
+    return () => {
+      unsubscribe()
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [reduced])
+
+  useRafLoop(({ pointer }) => {
+    if (!pointerRef.current || !reticleRef.current || !coordinateRef.current) return
+    const pointerEl = pointerRef.current
+    const reticleEl = reticleRef.current
+    pointerEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(45deg)`
+    reticleEl.style.transform = `translate3d(${pointer.x}px, ${pointer.y}px, 0) rotate(${45 + clamp(pointer.velocityX * 0.65, -18, 18)}deg)`
+    coordinateRef.current.style.transform = `translate3d(${pointer.x + 27}px, ${pointer.y + 24}px, 0)`
+    coordinateRef.current.textContent = `X${String(Math.round(pointer.targetX)).padStart(4, '0')} / Y${String(Math.round(pointer.targetY)).padStart(4, '0')}`
+    historyRef.current.unshift({ x: pointer.x, y: pointer.y })
+    historyRef.current.length = 7
+    trailRefs.current.forEach((element, index) => {
+      const point = historyRef.current[Math.min(historyRef.current.length - 1, (index + 1) * 1.2)] ?? historyRef.current[0]
+      element.style.opacity = `${Math.max(0.05, 0.35 - index * 0.05)}`
+      element.style.transform = `translate3d(${point.x}px, ${point.y}px, 0) rotate(45deg) scale(${1 - index * 0.08})`
+    })
+  }, !reduced && fine)
+
+  if (reduced || !fine) return null
+  return (
+    <>
+      <div className="pointer-glow" aria-hidden="true" />
+      <div className="pointer-system" aria-hidden="true">
+        <i ref={pointerRef} className="pointer-system__dot" />
+        <i ref={reticleRef} className="pointer-system__reticle" />
+        {Array.from({ length: 7 }, (_, index) => (
+          <i
+            key={index}
+            ref={(element) => {
+              if (element) trailRefs.current[index] = element
+            }}
+            className="pointer-system__trail"
+          />
+        ))}
+        <span ref={coordinateRef} className="pointer-system__coord" />
+        {pulses.map((pulse) => (
+          <i key={pulse.id} className="pointer-system__pulse" style={{ left: pulse.x, top: pulse.y }} />
+        ))}
+      </div>
+    </>
+  )
 }

@@ -1,3 +1,7 @@
+import { useRef } from 'react'
+import { clamp } from '../motion/motionMath'
+import { useRafLoop } from '../motion/useRafLoop'
+import { useReducedMotion } from '../motion/useReducedMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
 
 interface RouteStage {
@@ -35,8 +39,24 @@ const routeStages: readonly RouteStage[] = [
 ]
 
 export function RouteSection() {
+  const sectionRef = useRef<HTMLElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
+
+  useRafLoop(({ time }) => {
+    const section = sectionRef.current
+    const grid = gridRef.current
+    if (!section || !grid) return
+    const progress = reduced
+      ? 1
+      : clamp((window.innerHeight * 0.78 - grid.getBoundingClientRect().top) / (window.innerHeight * 0.72), 0, 1)
+    grid.style.setProperty('--route-progress', progress.toFixed(3))
+    if (reduced) grid.style.setProperty('--route-time', '0')
+    else grid.style.setProperty('--route-time', String(time))
+  }, !reduced)
+
   return (
-    <section id="route" className="section route">
+    <section id="route" ref={sectionRef} className="section route">
       <span className="ghost-word" aria-hidden="true">
         ROUTE
       </span>
@@ -59,7 +79,7 @@ export function RouteSection() {
           </p>
         </div>
 
-        <div className="route-grid">
+        <div ref={gridRef} className="route-grid">
           {routeStages.map((item, index) => (
             <Reveal key={item.stage} delay={index * 110}>
               <article className="route-step">

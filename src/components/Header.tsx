@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-
 const navItems = [
   { id: 'home', label: '首页', en: 'INDEX' },
   { id: 'paths', label: '技术方向', en: 'PATHS' },
@@ -13,34 +11,10 @@ const navItems = [
 const assetBase = import.meta.env.BASE_URL
 
 export function Header({ activeSection }: { activeSection: string }) {
-  const [progress, setProgress] = useState(0)
-
-  useEffect(() => {
-    let raf = 0
-    const onScroll = () => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        const doc = document.documentElement
-        const total = doc.scrollHeight - window.innerHeight
-        setProgress(total > 0 ? Math.min(1, Math.max(0, window.scrollY / total)) : 0)
-      })
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-      if (raf) window.cancelAnimationFrame(raf)
-    }
-  }, [])
-
   return (
     <header className="site-header">
       <span
         className="scroll-progress"
-        style={{ transform: `scaleX(${progress})` }}
         aria-hidden="true"
       />
       <a className="brand" href="#home" aria-label="返回首页">

@@ -67,12 +67,14 @@ export function ActivitiesSection() {
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     startX.current = event.clientX
+    event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (startX.current === null) return
     const delta = event.clientX - startX.current
     startX.current = null
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
     if (Math.abs(delta) > 42) goStep(delta < 0 ? 1 : -1)
   }
 
@@ -128,7 +130,7 @@ export function ActivitiesSection() {
               >
                 {entries.map((entry) => (
                   <figure
-                    className="album__slide"
+                    className={`album__slide${!entry.clone && entry.photo.id === active.id ? ' is-current' : ''}`}
                     key={entry.key}
                     aria-hidden={entry.clone || undefined}
                   >

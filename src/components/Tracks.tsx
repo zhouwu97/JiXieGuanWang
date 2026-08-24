@@ -1,10 +1,13 @@
-import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   getTrackById,
   tracks,
   type TrackDefinition,
   type TrackId,
 } from '../data/tracks'
+import { clamp } from '../motion/motionMath'
+import { useRafLoop } from '../motion/useRafLoop'
+import { useReducedMotion } from '../motion/useReducedMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
 
 function TrackSelector({
@@ -46,7 +49,7 @@ function TrackSelector({
   )
 }
 
-function Dossier({ track }: { track: TrackDefinition }) {
+function Dossier({ track, switching }: { track: TrackDefinition; switching: boolean }) {
   const frameRef = useRef<HTMLDivElement>(null)
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -75,7 +78,7 @@ function Dossier({ track }: { track: TrackDefinition }) {
       onPointerLeave={onPointerLeave}
     >
       <article
-        className="dossier"
+        className={`dossier${switching ? ' is-switching' : ''}`}
         key={track.id}
         style={{ '--track-accent': track.accent } as CSSProperties}
       >
@@ -181,10 +184,50 @@ export function TracksSection({
   onSelect: (id: TrackId) => void
 }) {
   const activeTrack = getTrackById(activeId) ?? tracks[0]
+  const [displayedId, setDisplayedId] = useState(activeId)
+  const [switching, setSwitching] = useState(false)
+  const switchTimer = useRef<number | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const autoPauseUntil = useRef(0)
+  const reduced = useReducedMotion()
   const restrictedCount = tracks.filter((track) => track.restricted).length
 
+  useEffect(() => {
+    if (activeId !== displayedId) {
+      setDisplayedId(activeId)
+      setSwitching(false)
+    }
+    return () => {
+      if (switchTimer.current !== null) window.clearTimeout(switchTimer.current)
+    }
+  }, [activeId, displayedId])
+
+  const displayedTrack = getTrackById(displayedId) ?? activeTrack
+
+  const handleSelect = (id: TrackId) => {
+    autoPauseUntil.current = performance.now() + 2000
+    setDisplayedId(id)
+    setSwitching(true)
+    onSelect(id)
+    if (switchTimer.current !== null) window.clearTimeout(switchTimer.current)
+    switchTimer.current = window.setTimeout(() => {
+      setSwitching(false)
+      switchTimer.current = null
+    }, 420)
+  }
+
+  useRafLoop(({ time }) => {
+    if (reduced || window.innerWidth <= 1024 || time < autoPauseUntil.current) return
+    const section = sectionRef.current
+    if (!section) return
+    const travel = Math.max(1, section.offsetHeight - window.innerHeight)
+    const progress = clamp(-section.getBoundingClientRect().top / travel, 0, 1)
+    const next = tracks[Math.min(tracks.length - 1, Math.floor(progress * tracks.length))]
+    if (next && next.id !== activeId) onSelect(next.id)
+  }, !reduced)
+
   return (
-    <section id="paths" className="section tracks">
+    <section id="paths" ref={sectionRef} className="section tracks">
       <span className="ghost-word" aria-hidden="true">
         PATHS
       </span>
@@ -220,12 +263,12 @@ export function TracksSection({
           <Reveal>
             <TrackSelector
               activeId={activeId}
-              onSelect={onSelect}
+              onSelect={handleSelect}
               restrictedCount={restrictedCount}
             />
           </Reveal>
           <Reveal delay={140}>
-            <Dossier track={activeTrack} />
+            <Dossier track={displayedTrack} switching={switching} />
           </Reveal>
         </div>
       </div>
