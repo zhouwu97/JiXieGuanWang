@@ -201,13 +201,38 @@ export function JoinSection() {
         </Reveal>
 
         <Reveal className="qr-frame-wrap" delay={140}>
-          <button className="qr-frame" type="button" onClick={openQr} aria-label="放大查看计算机协会招新群二维码">
-            <span className="qr-frame__label">ENTRY TICKET / 加入凭证</span>
-            {qrImageError ? <span className="qr-image-fallback">二维码加载失败</span> : (
-              <img src={`${assetBase}assets/qq-group.jpg`} alt="计算机协会招新群二维码" onError={() => setQrImageError(true)} />
-            )}
-            <span className="qr-frame__caption">SCAN TO CONNECT · 2026</span>
-          </button>
+          <div className="qr-paper">
+            <span className="qr-paper__label">ENTRY TICKET / 加入凭证</span>
+            <button className="qr-paper__viewport" type="button" onClick={openQr} aria-label="放大查看计算机协会招新群二维码">
+              {qrImageError ? (
+                <span className="qr-image-fallback">二维码加载失败</span>
+              ) : (
+                <img src={`${assetBase}assets/qq-group.jpg`} alt="计算机协会招新群二维码" onError={() => setQrImageError(true)} />
+              )}
+              <span className="qr-scan" aria-hidden="true" />
+              <span className="qr-focus qr-focus--tl" aria-hidden="true" />
+              <span className="qr-focus qr-focus--tr" aria-hidden="true" />
+              <span className="qr-focus qr-focus--bl" aria-hidden="true" />
+              <span className="qr-focus qr-focus--br" aria-hidden="true" />
+              <span className="qr-paper__zoom" aria-hidden="true">FULL VIEW ↗</span>
+            </button>
+            <div className="qr-paper__foot">
+              <span className="qr-paper__caption">SCAN TO CONNECT · 2026</span>
+              <button
+                className={`qr-paper__copy${copied ? ' is-copied' : ''}`}
+                type="button"
+                onClick={copyGroup}
+                aria-label={copied ? '群号已复制' : '复制招新群号'}
+              >
+                <span>QQ</span>
+                <strong>{qqGroup}</strong>
+                <em>{copied ? 'COPIED' : 'COPY'}</em>
+              </button>
+            </div>
+            <span className="qr-paper__serial" aria-hidden="true">SYIT-CA / ENTRY-026</span>
+            <span className="qr-paper__cut qr-paper__cut--a" aria-hidden="true" />
+            <span className="qr-paper__cut qr-paper__cut--b" aria-hidden="true" />
+          </div>
         </Reveal>
       </div>
 

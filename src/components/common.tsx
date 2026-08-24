@@ -431,50 +431,39 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
   )
 }
 
-const bootKey = 'syit-boot-seen'
-
-const bootLines: readonly string[] = [
-  'SYIT // BOOTING',
-  'LOADING WORKSPACE …',
-  'LINK: RECRUITMENT · 2026',
-  'READY_',
-]
-
 function shouldShowBoot() {
-  try {
-    if (sessionStorage.getItem(bootKey) === '1') return false
-  } catch {
-    // 存储不可用时仍允许本次启动展示，不影响页面交互。
-  }
   return !(typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 }
 
-export function BootOverlay() {
+export function BootOverlay({ onReveal }: { onReveal?: () => void }) {
   const [phase, setPhase] = useState<'off' | 'on' | 'done'>(() => (shouldShowBoot() ? 'on' : 'off'))
+  const [progress, setProgress] = useState(0)
+  const onRevealRef = useRef(onReveal)
+  onRevealRef.current = onReveal
 
   useEffect(() => {
     if (phase === 'off') {
-      try {
-        sessionStorage.setItem(bootKey, '1')
-      } catch {
-        /* 忽略存储异常 */
-      }
+      onRevealRef.current?.()
       return undefined
     }
-    const hideAt = window.setTimeout(() => setPhase('done'), 1050)
-    const clearAt = window.setTimeout(() => {
-      setPhase('off')
-      try {
-        sessionStorage.setItem(bootKey, '1')
-      } catch {
-        /* 忽略存储异常 */
-      }
-    }, 1750)
+    let current = 0
+    let completeTimer: number | null = null
+    const progressTimer = window.setInterval(() => {
+      current = Math.min(100, current + Math.ceil(Math.random() * 17))
+      setProgress(current)
+      if (current < 100) return
+      window.clearInterval(progressTimer)
+      completeTimer = window.setTimeout(() => {
+        onRevealRef.current?.()
+        setPhase('done')
+        window.setTimeout(() => setPhase('off'), 950)
+      }, 140)
+    }, 65)
     return () => {
-      window.clearTimeout(hideAt)
-      window.clearTimeout(clearAt)
+      window.clearInterval(progressTimer)
+      if (completeTimer !== null) window.clearTimeout(completeTimer)
     }
   }, [])
 
@@ -483,17 +472,24 @@ export function BootOverlay() {
   const assetBase = import.meta.env.BASE_URL
   return (
     <div className={`boot${phase === 'done' ? ' is-done' : ''}`} aria-hidden="true">
-      <div className="boot__inner">
-        <img className="boot__logo" src={`${assetBase}assets/association-logo.jpg`} alt="" />
-        <div className="boot__lines">
-          {bootLines.map((line, index) => (
-            <span className="boot__line" key={line} style={{ animationDelay: `${0.15 + index * 0.18}s` }}>
-              {line}
-            </span>
-          ))}
+      <div className="boot__box">
+        <div className="boot__head">
+          <b>SYIT // BOOT SEQUENCE</b>
+          <span>
+            COMPUTER SOCIETY
+            <br />
+            2026 RECRUITMENT
+          </span>
         </div>
-        <div className="boot__bar">
-          <i />
+        <div className="boot__title">
+          SYSTEM <em>READY.</em>
+        </div>
+        <div className="boot__line">
+          <i style={{ width: `${progress}%` }} />
+        </div>
+        <div className="boot__foot">
+          <span>LOADING MOTION LAYER</span>
+          <span>{String(progress).padStart(3, '0')}%</span>
         </div>
       </div>
     </div>

@@ -2,8 +2,8 @@ export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
-export function calculateHeroProgress(top: number, viewportHeight: number) {
-  return clamp(-top / Math.max(1, viewportHeight), 0, 1)
+export function calculateHeroProgress(top: number, travel: number) {
+  return clamp(-top / Math.max(1, travel), 0, 1)
 }
 
 export function isHeroParallaxEnabled(reducedMotion: boolean, mobile: boolean) {

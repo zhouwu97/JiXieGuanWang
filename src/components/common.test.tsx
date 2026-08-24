@@ -65,18 +65,16 @@ describe('通用动效生命周期', () => {
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('BootOverlay 每个 session 只展示一次，reduced motion 直接跳过', () => {
-    sessionStorage.removeItem('syit-boot-seen')
+  it('BootOverlay 每次新的页面载入展示，内部导航不依赖 sessionStorage，reduced motion 直接跳过', () => {
+    sessionStorage.setItem('syit-boot-seen', '1')
     const first = render(<BootOverlay />)
     expect(first.container.querySelector('.boot')).toBeInTheDocument()
     first.unmount()
 
-    sessionStorage.setItem('syit-boot-seen', '1')
     const second = render(<BootOverlay />)
-    expect(second.container.querySelector('.boot')).not.toBeInTheDocument()
+    expect(second.container.querySelector('.boot')).toBeInTheDocument()
     second.unmount()
 
-    sessionStorage.removeItem('syit-boot-seen')
     vi.stubGlobal('matchMedia', vi.fn(() => ({
       matches: true,
       addEventListener: vi.fn(),

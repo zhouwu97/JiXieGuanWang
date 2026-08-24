@@ -17,6 +17,10 @@ import {
   TRACK_ENTER_MS,
   TRACK_EXIT_MS,
 } from '../motion/trackTransition'
+import { clamp } from '../motion/motionMath'
+import { useMotionReaction } from '../motion/useMotionReaction'
+import { useMediaQuery } from '../motion/useMediaQuery'
+import { useReducedMotion } from '../motion/useReducedMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
 
 export type TrackTransitionPhase = 'stable' | 'exiting' | 'entering'
@@ -245,15 +249,27 @@ export function TracksSection({
   onSelect: (id: TrackId) => void
 }) {
   const activeTrack = getTrackById(activeId) ?? tracks[0]
+  const runRef = useRef<HTMLElement>(null)
+  const tracksRef = useRef<HTMLDivElement>(null)
+  const ghostRef = useRef<HTMLSpanElement>(null)
+  const headingRef = useRef<HTMLDivElement>(null)
   const [displayedId, setDisplayedId] = useState<TrackId>(activeId)
   const [phase, setPhase] = useState<TrackTransitionPhase>('stable')
+  const [chapterIndex, setChapterIndex] = useState(() => Math.max(0, tracks.findIndex((track) => track.id === activeId)))
   const displayedIdRef = useRef<TrackId>(activeId)
+  const activeIdRef = useRef<TrackId>(activeId)
+  const chapterIndexRef = useRef(chapterIndex)
   const phaseRef = useRef<TrackTransitionPhase>('stable')
   const pendingIdRef = useRef<TrackId | null>(null)
   const exitTimerRef = useRef<number | null>(null)
   const enterTimerRef = useRef<number | null>(null)
   const lastActiveIdRef = useRef<TrackId>(activeId)
   const restrictedCount = tracks.filter((track) => track.restricted).length
+  const reduced = useReducedMotion()
+  const mobile = useMediaQuery('(max-width: 760px)', false)
+  const coarse = useMediaQuery('(pointer: coarse)', false)
+  const scrollChapterEnabled = !reduced && !mobile && !coarse
+  activeIdRef.current = activeId
 
   const updateDisplayedId = (id: TrackId) => {
     displayedIdRef.current = id
@@ -319,20 +335,80 @@ export function TracksSection({
 
   const displayedTrack = getTrackById(displayedId) ?? activeTrack
 
+  const scrollToChapter = (index: number) => {
+    if (!scrollChapterEnabled) return
+    const runway = runRef.current
+    if (!runway) return
+    if (runway.offsetHeight <= window.innerHeight) return
+    const travel = runway.offsetHeight - window.innerHeight
+    const top = window.scrollY + runway.getBoundingClientRect().top + Math.max(1, travel) * ((index + 0.06) / tracks.length)
+    window.scrollTo({ top, behavior: reduced ? 'auto' : 'smooth' })
+  }
+
   const handleSelect = (id: TrackId) => {
-    if (id === activeId && id === displayedIdRef.current && phaseRef.current === 'stable') return
+    const nextIndex = tracks.findIndex((track) => track.id === id)
+    if (nextIndex >= 0) {
+      chapterIndexRef.current = nextIndex
+      setChapterIndex(nextIndex)
+    }
+    if (id === activeId && id === displayedIdRef.current && phaseRef.current === 'stable') {
+      scrollToChapter(nextIndex)
+      return
+    }
     lastActiveIdRef.current = id
     requestTransition(id)
     if (id !== activeId) onSelect(id)
+    scrollToChapter(nextIndex)
   }
 
+  useMotionReaction(
+    () => {
+      const runway = runRef.current
+      if (!runway) return
+      if (runway.offsetHeight <= window.innerHeight) return
+      const rect = runway.getBoundingClientRect()
+      const travel = runway.offsetHeight - window.innerHeight
+      const progress = clamp(-rect.top / Math.max(1, travel), 0, 1)
+      const nextIndex = Math.min(tracks.length - 1, Math.floor(progress * tracks.length))
+      if (ghostRef.current) ghostRef.current.style.transform = `translate3d(${progress * 80}px, ${progress * 22}px, 0)`
+      if (headingRef.current) {
+        const exit = Math.max(0, progress - 0.72)
+        headingRef.current.style.transform = `translate3d(0, ${-exit * 100}px, 0)`
+        headingRef.current.style.opacity = String(1 - Math.max(0, progress - 0.74) * 2.5)
+      }
+      if (nextIndex === chapterIndexRef.current) return
+      chapterIndexRef.current = nextIndex
+      setChapterIndex(nextIndex)
+      const nextId = tracks[nextIndex].id
+      if (activeIdRef.current === nextId) return
+      activeIdRef.current = nextId
+      onSelect(nextId)
+      requestTransition(nextId)
+    },
+    scrollChapterEnabled,
+  )
+
+  useEffect(() => {
+    if (scrollChapterEnabled) return undefined
+    if (ghostRef.current) ghostRef.current.style.transform = ''
+    if (headingRef.current) {
+      headingRef.current.style.transform = ''
+      headingRef.current.style.opacity = ''
+    }
+    const index = Math.max(0, tracks.findIndex((track) => track.id === activeId))
+    chapterIndexRef.current = index
+    setChapterIndex(index)
+    return undefined
+  }, [activeId, scrollChapterEnabled])
+
   return (
-    <section id="paths" className="section tracks">
-      <span className="ghost-word" aria-hidden="true">
-        PATHS
-      </span>
-      <div className="container">
-        <div className="section-heading section-heading--split">
+    <section id="paths" ref={runRef} className="tracks-run">
+      <div ref={tracksRef} className="section tracks">
+        <span ref={ghostRef} className="ghost-word" aria-hidden="true">
+          PATHS
+        </span>
+        <div className="container">
+          <div ref={headingRef} className="section-heading section-heading--split">
           <div>
             <SectionTag number="01" en="TECHNICAL PATHS" label="技术分路" />
             <Reveal>
@@ -357,19 +433,25 @@ export function TracksSection({
               <span className="elig-note">AI 全栈 / 网安方向限计算机、电子信息相关专业</span>
             </div>
           </div>
-        </div>
+          </div>
 
-        <div className="track-grid">
-          <Reveal>
-            <TrackSelector
-              activeId={activeId}
-              onSelect={handleSelect}
-              restrictedCount={restrictedCount}
-            />
-          </Reveal>
-          <Reveal delay={140}>
-            <Dossier track={displayedTrack} phase={phase} />
-          </Reveal>
+          <div className="track-grid">
+            <Reveal>
+              <TrackSelector
+                activeId={activeId}
+                onSelect={handleSelect}
+                restrictedCount={restrictedCount}
+              />
+            </Reveal>
+            <Reveal delay={140}>
+              <Dossier track={displayedTrack} phase={phase} />
+            </Reveal>
+          </div>
+        </div>
+        <div className="track-chapter" aria-hidden="true">
+          {tracks.map((track, index) => (
+            <i key={track.id} className={index === chapterIndex ? 'active' : ''} />
+          ))}
         </div>
       </div>
     </section>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { clamp } from '../motion/motionMath'
-import { useRafLoop } from '../motion/useRafLoop'
+import { useMotionReaction } from '../motion/useMotionReaction'
 import { useReducedMotion } from '../motion/useReducedMotion'
 import { shouldAnimateRoute } from '../motion/routeMotion'
 import { GlitchText, Reveal, SectionTag } from './common'
@@ -42,6 +42,7 @@ const routeStages: readonly RouteStage[] = [
 export function RouteSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const progressRef = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotion()
   const [visible, setVisible] = useState(true)
   const [pageVisible, setPageVisible] = useState(
@@ -66,19 +67,23 @@ export function RouteSection() {
     return () => document.removeEventListener('visibilitychange', update)
   }, [])
 
-  useRafLoop(() => {
+  useMotionReaction(() => {
     const section = sectionRef.current
     const grid = gridRef.current
     if (!section || !grid) return
     const progress = reduced
       ? 1
       : clamp((window.innerHeight * 0.78 - grid.getBoundingClientRect().top) / (window.innerHeight * 0.72), 0, 1)
-    grid.style.setProperty('--route-progress', progress.toFixed(3))
+    progressRef.current?.style.setProperty('transform', `scaleX(${progress.toFixed(3)})`)
+    grid.querySelectorAll<HTMLElement>('.route-step').forEach((step, index) => {
+      step.classList.toggle('is-active', progress > [0.1, 0.34, 0.58, 0.82][index])
+    })
   }, shouldAnimateRoute(reduced, visible, pageVisible))
 
   useEffect(() => {
     if (!reduced) return undefined
-    gridRef.current?.style.setProperty('--route-progress', '1')
+    progressRef.current?.style.setProperty('transform', 'scaleX(1)')
+    gridRef.current?.querySelectorAll<HTMLElement>('.route-step').forEach((step) => step.classList.add('is-active'))
     return undefined
   }, [reduced])
 
@@ -107,6 +112,7 @@ export function RouteSection() {
         </div>
 
         <div ref={gridRef} className="route-grid">
+          <div ref={progressRef} className="route-progress" aria-hidden="true" />
           {routeStages.map((item, index) => (
             <Reveal key={item.stage} delay={index * 110}>
               <article className="route-step">

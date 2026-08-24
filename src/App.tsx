@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { TrackId } from './data/tracks'
 import { BootOverlay, PointerGlow } from './components/common'
 import { Header } from './components/Header'
@@ -21,6 +21,8 @@ function App() {
   useScrollProgress()
   const [activeTrackId, setActiveTrackId] = useState<TrackId>('ai-fullstack')
   const [activeSection, setActiveSection] = useState<string>('home')
+  const [siteReady, setSiteReady] = useState(false)
+  const revealSite = useCallback(() => setSiteReady(true), [])
 
   useEffect(() => {
     const sections = sectionIds
@@ -66,10 +68,10 @@ function App() {
   return (
     <div className="app">
       <PointerGlow />
-      <BootOverlay />
+      <BootOverlay onReveal={revealSite} />
       <Header activeSection={activeSection} />
       <main>
-        <Hero />
+        <Hero ready={siteReady} />
         <TracksSection activeId={activeTrackId} onSelect={setActiveTrackId} />
         <RouteSection />
         <ProjectSection />
