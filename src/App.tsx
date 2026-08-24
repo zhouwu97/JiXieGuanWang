@@ -6,11 +6,12 @@ import { Hero } from './components/Hero'
 import { TracksSection } from './components/Tracks'
 import { RouteSection } from './components/Route'
 import { ProjectSection } from './components/Project'
+import { ActivitiesSection } from './components/Activities'
 import { BriefingSection } from './components/Briefing'
 import { JoinSection } from './components/Join'
 import './styles.css'
 
-const sectionIds = ['home', 'paths', 'route', 'field', 'notice', 'join'] as const
+const sectionIds = ['home', 'paths', 'route', 'field', 'activities', 'notice', 'join'] as const
 
 function App() {
   const [activeTrackId, setActiveTrackId] = useState<TrackId>('ai-fullstack')
@@ -38,6 +39,7 @@ function App() {
         <TracksSection activeId={activeTrackId} onSelect={setActiveTrackId} />
         <RouteSection />
         <ProjectSection />
+        <ActivitiesSection />
         <BriefingSection />
         <JoinSection />
       </main>

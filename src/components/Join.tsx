@@ -13,7 +13,7 @@ export function JoinSection() {
       </span>
       <div className="container join-inner">
         <Reveal className="join-copy">
-          <SectionTag number="05" en="JOIN THE SOCIETY" label="加入协会" />
+          <SectionTag number="06" en="JOIN THE SOCIETY" label="加入协会" />
           <h2 className="section-title">
             准备好写下
             <br />

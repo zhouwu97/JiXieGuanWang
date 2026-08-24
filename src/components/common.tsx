@@ -236,7 +236,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
         context.translate(x, y)
         context.rotate(Math.PI / 4)
         const radius = node.size + influence * 2.2
-        context.fillStyle = node.amber ? '#EC7C24' : '#4A4436'
+        context.fillStyle = node.amber ? '#D9702E' : '#4A4436'
         context.globalAlpha = node.amber ? 0.9 : Math.min(0.8, 0.42 + influence * 0.5)
         context.fillRect(-radius, -radius, radius * 2, radius * 2)
         context.restore()
@@ -251,7 +251,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
       context.save()
       context.translate(cx, cy)
       context.rotate(time * 0.00009)
-      context.strokeStyle = 'rgba(236, 124, 36, 0.18)'
+      context.strokeStyle = 'rgba(217, 112, 46, 0.18)'
       diamond(0, 0, 58)
       context.rotate(-time * 0.00018)
       context.strokeStyle = 'rgba(38, 34, 26, 0.09)'

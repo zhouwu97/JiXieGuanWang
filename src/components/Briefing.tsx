@@ -13,7 +13,7 @@ export function BriefingSection() {
       <div className="container">
         <div className="section-heading section-heading--split">
           <div>
-            <SectionTag number="04" en="RECRUITMENT NOTICE" label="招新说明" />
+            <SectionTag number="05" en="RECRUITMENT NOTICE" label="招新说明" />
             <h2 className="section-title">
               入场之前
               <br />

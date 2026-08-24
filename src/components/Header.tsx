@@ -5,6 +5,7 @@ const navItems = [
   { id: 'paths', label: '技术方向', en: 'PATHS' },
   { id: 'route', label: '培养路线', en: 'ROUTE' },
   { id: 'field', label: '项目现场', en: 'FIELD' },
+  { id: 'activities', label: '社团活动', en: 'LOG' },
   { id: 'notice', label: '招新说明', en: 'NOTICE' },
   { id: 'join', label: '加入协会', en: 'JOIN' },
 ] as const

@@ -1,9 +1,10 @@
 import { getTrackById } from '../data/tracks'
 import { GlitchText, Reveal, SectionTag } from './common'
 
+const liveUrl = 'https://sylulive.online/'
+
 const deployLines: readonly string[] = [
   '→ 04 条分路完成打包 · 01.84s',
-  '→ 部署目标：campus-live · 校园服务',
   '→ build passed · 0.026s',
   '→ 2 个项目席位开放中 · 择优选拔',
 ]
@@ -48,9 +49,14 @@ export function ProjectSection() {
                 <span key={chip}>{chip}</span>
               ))}
             </div>
-            <a className="text-link" href="#join">
-              查看入场方式 <span aria-hidden="true">▸</span>
-            </a>
+            <div className="field-actions">
+              <a className="btn btn--line" href={liveUrl} target="_blank" rel="noreferrer">
+                前往校园 live <span aria-hidden="true">↗</span>
+              </a>
+              <a className="text-link" href="#join">
+                查看入场方式 <span aria-hidden="true">▸</span>
+              </a>
+            </div>
           </Reveal>
 
           <Reveal delay={120} className="field-board">
@@ -64,6 +70,14 @@ export function ProjectSection() {
               <div className="deploy-terminal__body">
                 <p>
                   <b className="term-prompt">$</b> syit deploy --project=campus-live
+                </p>
+                <p>
+                  → 部署目标：campus-live · 校园服务
+                  <br />
+                  → 线上站点：
+                  <a className="term-link" href={liveUrl} target="_blank" rel="noreferrer">
+                    sylulive.online ↗
+                  </a>
                 </p>
                 {deployLines.map((line) => (
                   <p key={line}>{line}</p>
