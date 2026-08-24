@@ -1,0 +1,73 @@
+import { useEffect, useState } from 'react'
+
+const navItems = [
+  { id: 'home', label: '首页', en: 'INDEX' },
+  { id: 'paths', label: '技术方向', en: 'PATHS' },
+  { id: 'field', label: '项目现场', en: 'FIELD' },
+  { id: 'notice', label: '招新说明', en: 'NOTICE' },
+  { id: 'join', label: '加入协会', en: 'JOIN' },
+] as const
+
+const assetBase = import.meta.env.BASE_URL
+
+export function Header({ activeSection }: { activeSection: string }) {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    let raf = 0
+    const onScroll = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const doc = document.documentElement
+        const total = doc.scrollHeight - window.innerHeight
+        setProgress(total > 0 ? Math.min(1, Math.max(0, window.scrollY / total)) : 0)
+      })
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (raf) window.cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  return (
+    <header className="site-header">
+      <span
+        className="scroll-progress"
+        style={{ transform: `scaleX(${progress})` }}
+        aria-hidden="true"
+      />
+      <a className="brand" href="#home" aria-label="返回首页">
+        <img
+          className="brand__logo"
+          src={`${assetBase}assets/association-logo.jpg`}
+          alt="沈阳理工大学计算机协会标志"
+        />
+        <span className="brand__text">
+          <strong>SYIT / CS</strong>
+          <small>COMPUTER SOCIETY</small>
+        </span>
+      </a>
+      <nav className="main-nav" aria-label="主导航">
+        {navItems.map((item) => (
+          <a
+            key={item.id}
+            href={`#${item.id}`}
+            className={activeSection === item.id ? 'is-active' : ''}
+          >
+            <span className="main-nav__num">{String(navItems.indexOf(item) + 1).padStart(2, '0')}</span>
+            {item.label}
+            <span className="main-nav__en">{item.en}</span>
+          </a>
+        ))}
+      </nav>
+      <a className="header-join" href="#join">
+        JOIN&nbsp;US <span aria-hidden="true">▸</span>
+      </a>
+    </header>
+  )
+}

@@ -22,6 +22,15 @@ describe('tracks', () => {
     expect(getTrackById('cybersecurity')?.eligibility).toBe(
       '仅限计算机、电子信息相关专业',
     )
+    expect(getTrackById('ai-fullstack')?.restricted).toBe(true)
+    expect(getTrackById('cybersecurity')?.restricted).toBe(true)
+  })
+
+  it('AI 算法与数据分析不做专业限制', () => {
+    expect(getTrackById('ai-algorithm')?.eligibility).toBe('不限专业')
+    expect(getTrackById('data-analysis')?.eligibility).toBe('不限专业')
+    expect(getTrackById('ai-algorithm')?.restricted).toBe(false)
+    expect(getTrackById('data-analysis')?.restricted).toBe(false)
   })
 
   it('说明人工智能算法方向需要英伟达独立显卡', () => {
@@ -54,8 +63,8 @@ describe('tracks', () => {
 describe('recruitmentNotes', () => {
   it('保留三条统一招新说明', () => {
     expect(recruitmentNotes).toEqual([
-      '可报名多个方向，但需理性评估精力。',
-      '正式分组在开学第一次社团招新结束之后。',
+      '可报名多个方向，但需理性评估精力，建议主攻一至两个。',
+      '正式分组在开学第一次社团招新结束之后确认。',
       '实习成员可提前学习对应方向，新成员后续统一确认。',
     ])
   })
