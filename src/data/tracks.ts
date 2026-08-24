@@ -43,7 +43,11 @@ export const tracks: readonly TrackDefinition[] = [
       '桌面应用',
       'AI 艺术',
     ],
-    competitions: ['中国高校计算机大赛、软件杯等应用类竞赛'],
+    competitions: [
+      '中国软件杯 · 大学生软件设计大赛',
+      '中国大学生计算机设计大赛（4C）',
+      '蓝桥杯 · 软件赛 Web 应用开发',
+    ],
     projectOpportunity: [
       '第一学期末择优 1 名参与沈理校园 live 项目',
       '第二学期考核后开放第 2 个名额，可能视实际增加',
@@ -63,9 +67,11 @@ export const tracks: readonly TrackDefinition[] = [
     summary: '聚焦深度学习、计算机视觉与机器博弈的进阶训练，并延伸至强化学习前沿。',
     modules: ['深度学习', '计算机视觉', '机器博弈', '强化学习进阶'],
     competitions: [
-      '计算机视觉相关赛道',
       '腾讯开悟人工智能大赛',
-      '计算机博弈大赛等',
+      '全球校园人工智能算法精英大赛',
+      '中国大学生计算机博弈大赛',
+      '中国高校计算机大赛 · 人工智能创意赛',
+      '阿里云天池 · 算法竞赛',
     ],
   },
   {
@@ -82,9 +88,11 @@ export const tracks: readonly TrackDefinition[] = [
     summary: '覆盖数据清洗、可视化、机器学习与数学建模的完整方法链路，用数据讲出有说服力的故事。',
     modules: ['数据清洗', '可视化', '机器学习', '深度学习', '数学建模'],
     competitions: [
-      '长风杯',
-      '全球校园人工智能算法大赛',
-      '数学建模等数据类竞赛',
+      '全国大学生数学建模竞赛（CUMCM）',
+      '美国大学生数学建模竞赛（MCM/ICM）',
+      '长风杯 · 数据科学大赛',
+      '泰迪杯 · 数据挖掘挑战赛',
+      '全国大学生市场调查与分析大赛',
     ],
   },
   {
@@ -94,13 +102,19 @@ export const tracks: readonly TrackDefinition[] = [
     name: '网络安全',
     english: 'CYBERSECURITY',
     shortName: '网安',
-    accent: '#D84B3A',
+    accent: '#C9593E',
     eligibility: '仅限计算机、电子信息相关专业',
     restricted: true,
     hardware: '常规设备即可',
     summary: '从协议栈到攻防对抗，以白帽视角理解系统、发现漏洞并构建防线，走向 CTF 竞技场。',
     modules: ['计算机网络', 'Web 安全', '渗透测试', 'Yakit', 'Kali Linux', 'CTF 入门'],
-    competitions: ['CTF 网络安全竞赛', '信息安全类大赛等'],
+    competitions: [
+      '全国大学生信息安全竞赛（CISCN）',
+      '强网杯 · 网络安全挑战赛',
+      'XCTF · 网络攻防联赛',
+      'ISCC · 信息安全与对抗技术竞赛',
+      '蓝桥杯 · 网络安全精英赛',
+    ],
   },
 ]
 

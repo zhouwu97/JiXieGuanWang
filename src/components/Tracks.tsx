@@ -152,9 +152,13 @@ function Dossier({ track }: { track: TrackDefinition }) {
         <div className="dossier__block">
           <span className="dossier__label">赛事接入 / COMPETITIONS</span>
           <ul className="comp-list">
-            {track.competitions.map((item) => (
+            {track.competitions.map((item, index) => (
               <li key={item}>
-                {item} <i aria-hidden="true">▸</i>
+                <span>
+                  <b>{String(index + 1).padStart(2, '0')}</b>
+                  {item}
+                </span>
+                <i aria-hidden="true">▸</i>
               </li>
             ))}
           </ul>
@@ -194,15 +198,20 @@ export function TracksSection({
               <GlitchText text="同时开启" />
             </h2>
           </div>
-          <p className="section-side">
-            选择你的计算方向。
-            <br />
-            可以从兴趣出发，也可以从问题出发。
-            <br />
-            <em className="aside-warn">
-              <i aria-hidden="true">!</i> AI 全栈 / 网安方向限计算机、电子信息相关专业
-            </em>
-          </p>
+          <div className="section-side-col">
+            <p className="section-side">
+              选择你的计算方向。
+              <br />
+              可以从兴趣出发，也可以从问题出发。
+            </p>
+            <div className="aside-elig">
+              <b className="elig-open">
+                <i aria-hidden="true">✓</i>
+                AI 算法 / 数据分析 · 不限专业开放
+              </b>
+              <span className="elig-note">AI 全栈 / 网安方向限计算机、电子信息相关专业</span>
+            </div>
+          </div>
         </div>
 
         <div className="track-grid">

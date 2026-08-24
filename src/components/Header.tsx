@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 const navItems = [
   { id: 'home', label: '首页', en: 'INDEX' },
   { id: 'paths', label: '技术方向', en: 'PATHS' },
+  { id: 'route', label: '培养路线', en: 'ROUTE' },
   { id: 'field', label: '项目现场', en: 'FIELD' },
   { id: 'notice', label: '招新说明', en: 'NOTICE' },
   { id: 'join', label: '加入协会', en: 'JOIN' },
@@ -48,8 +49,8 @@ export function Header({ activeSection }: { activeSection: string }) {
           alt="沈阳理工大学计算机协会标志"
         />
         <span className="brand__text">
-          <strong>SYIT / CS</strong>
-          <small>COMPUTER SOCIETY</small>
+          <strong>SYIT · 计算机协会</strong>
+          <small>COMPUTER ASSOCIATION</small>
         </span>
       </a>
       <nav className="main-nav" aria-label="主导航">

@@ -13,7 +13,7 @@ export function BriefingSection() {
       <div className="container">
         <div className="section-heading section-heading--split">
           <div>
-            <SectionTag number="03" en="RECRUITMENT NOTICE" label="招新说明" />
+            <SectionTag number="04" en="RECRUITMENT NOTICE" label="招新说明" />
             <h2 className="section-title">
               入场之前
               <br />
@@ -76,7 +76,7 @@ export function BriefingSection() {
             </div>
 
             <div className="seal" aria-hidden="true">
-              <span>CS</span>
+              <span>计协</span>
               <small>SYIT / 2026</small>
             </div>
           </Reveal>

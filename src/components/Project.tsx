@@ -3,7 +3,7 @@ import { GlitchText, Reveal, SectionTag } from './common'
 
 const deployLines: readonly string[] = [
   '→ 04 条分路完成打包 · 01.84s',
-  '→ 部署目标：校园内网 · campus-live',
+  '→ 部署目标：campus-live · 校园服务',
   '→ build passed · 0.026s',
   '→ 2 个项目席位开放中 · 择优选拔',
 ]
@@ -27,7 +27,7 @@ export function ProjectSection() {
       </span>
       <div className="container">
         <div className="section-heading">
-          <SectionTag number="02" en="FIELD PROJECT" label="项目现场" />
+          <SectionTag number="03" en="FIELD PROJECT" label="项目现场" />
           <h2 className="section-title">
             把练习场
             <br />

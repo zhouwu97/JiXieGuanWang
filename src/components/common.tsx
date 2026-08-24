@@ -297,7 +297,7 @@ const bootKey = 'syit-boot-seen'
 
 const bootLines: readonly string[] = [
   'SYIT // BOOTING',
-  'CALIBRATING SIGNAL …',
+  'LOADING WORKSPACE …',
   'LINK: RECRUITMENT · 2026',
   'READY_',
 ]

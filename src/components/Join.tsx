@@ -13,7 +13,7 @@ export function JoinSection() {
       </span>
       <div className="container join-inner">
         <Reveal className="join-copy">
-          <SectionTag number="04" en="JOIN THE SOCIETY" label="加入协会" />
+          <SectionTag number="05" en="JOIN THE SOCIETY" label="加入协会" />
           <h2 className="section-title">
             准备好写下
             <br />
@@ -41,7 +41,7 @@ export function JoinSection() {
       </div>
 
       <footer className="footer container">
-        <span>SYIT · COMPUTER SOCIETY</span>
+        <span>SYIT · COMPUTER ASSOCIATION</span>
         <span>沈阳理工大学 · 2026</span>
         <span>POWERED BY REACT + VITE</span>
         <span>END OF TRANSMISSION_</span>

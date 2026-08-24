@@ -24,8 +24,8 @@ const amberTicker: readonly string[] = [
 
 const termLines: readonly { text: string; at: number; cmd?: boolean }[] = [
   { text: 'syit recruit --class=2026', at: 0.3, cmd: true },
-  { text: ':: 校准信号 → 群组 1081018272', at: 1.5 },
-  { text: '[OK] 04 条技术分路全部在线', at: 2.9 },
+  { text: ':: 装载 04 条技术分路 · 群组 1081018272', at: 1.5 },
+  { text: '[OK] 工程环境就绪 · 项目席位在线', at: 2.9 },
   { text: '[READY] 等待你的第一个 commit', at: 4.3 },
 ]
 
@@ -173,7 +173,7 @@ export function Hero() {
         SYIT
       </span>
       <span className="hero-corner hero-corner--tl" aria-hidden="true">
-        SYIT-CS.026
+        SYIT-CA.026
       </span>
       <span className="hero-corner hero-corner--br" aria-hidden="true">
         <LiveClock />· SYS.READY_ 2026
