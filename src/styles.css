@@ -1203,7 +1203,6 @@ html {
   transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transition: transform 0.18s ease-out, box-shadow 0.3s ease;
   will-change: transform;
-  animation: dossier-in 0.45s ease both;
 }
 
 .dossier:hover {
@@ -2926,18 +2925,6 @@ html {
   }
 }
 
-@keyframes dossier-in {
-  from {
-    opacity: 0;
-    transform: translateY(26px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes glitch-a {
   0% {
     clip-path: inset(0 0 72% 0);
@@ -3637,7 +3624,7 @@ body:not(.pointer-ready) .pointer-system {
 }
 
 .dossier.is-entering {
-  animation: dossier-swap-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dossier-swap-in 0.23s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .route-grid > .reveal.is-in .route-node {
@@ -3801,8 +3788,8 @@ body.qr-open .pointer-glow {
 }
 
 @keyframes dossier-swap-in {
-  from { opacity: 0; transform: translate3d(-18px, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
+  from { opacity: 0; transform: translate3d(-25px, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
+  to { opacity: 1; transform: translate3d(0, var(--enter-y, 0), 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
 }
 
 @keyframes route-node-active {
@@ -4724,10 +4711,6 @@ body.qr-open .pointer-glow {
     animation: none;
   }
 
-  .tracks-run > .tracks .dossier.is-entering {
-    animation: dossier-swap-in-v7 0.23s cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-
   .track-chapter {
     right: 30px;
     gap: 7px;
@@ -4742,18 +4725,6 @@ body.qr-open .pointer-glow {
   .track-chapter i.active {
     height: 52px;
     background: var(--accent);
-  }
-}
-
-@keyframes dossier-swap-in-v7 {
-  from {
-    opacity: 0;
-    transform: translate3d(-25px, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   }
 }
 
