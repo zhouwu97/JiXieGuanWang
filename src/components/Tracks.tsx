@@ -192,11 +192,13 @@ export function TracksSection({
         <div className="section-heading section-heading--split">
           <div>
             <SectionTag number="01" en="TECHNICAL PATHS" label="技术分路" />
-            <h2 className="section-title">
-              四条分路
-              <br />
-              <GlitchText text="同时开启" />
-            </h2>
+            <Reveal>
+              <h2 className="section-title">
+                四条分路
+                <br />
+                <GlitchText text="同时开启" />
+              </h2>
+            </Reveal>
           </div>
           <div className="section-side-col">
             <p className="section-side">

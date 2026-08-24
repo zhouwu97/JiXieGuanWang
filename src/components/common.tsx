@@ -374,3 +374,35 @@ export function LiveClock() {
 
   return <span className="live-clock">{time}</span>
 }
+
+export function PointerGlow() {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    if (
+      typeof matchMedia === 'function' &&
+      (matchMedia('(prefers-reduced-motion: reduce)').matches ||
+        matchMedia('(pointer: coarse)').matches)
+    ) {
+      return undefined
+    }
+    let raf = 0
+    const onMove = (event: globalThis.PointerEvent) => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        el.style.setProperty('--px', `${event.clientX}px`)
+        el.style.setProperty('--py', `${event.clientY}px`)
+      })
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      if (raf) window.cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  return <div ref={ref} className="pointer-glow" aria-hidden="true" />
+}

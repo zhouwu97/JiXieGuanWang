@@ -14,11 +14,13 @@ export function BriefingSection() {
         <div className="section-heading section-heading--split">
           <div>
             <SectionTag number="05" en="RECRUITMENT NOTICE" label="招新说明" />
-            <h2 className="section-title">
-              入场之前
-              <br />
-              <GlitchText text="请先读取" />
-            </h2>
+            <Reveal>
+              <h2 className="section-title">
+                入场之前
+                <br />
+                <GlitchText text="请先读取" />
+              </h2>
+            </Reveal>
           </div>
           <p className="section-side">
             这不是一场短暂的围观。

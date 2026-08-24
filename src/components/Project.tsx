@@ -29,11 +29,13 @@ export function ProjectSection() {
       <div className="container">
         <div className="section-heading">
           <SectionTag number="03" en="FIELD PROJECT" label="项目现场" />
-          <h2 className="section-title">
-            把练习场
-            <br />
-            <GlitchText text="连接到现实" />
-          </h2>
+          <Reveal>
+            <h2 className="section-title">
+              把练习场
+              <br />
+              <GlitchText text="连接到现实" />
+            </h2>
+          </Reveal>
         </div>
 
         <div className="field-grid">

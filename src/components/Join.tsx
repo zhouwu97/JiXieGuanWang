@@ -14,11 +14,13 @@ export function JoinSection() {
       <div className="container join-inner">
         <Reveal className="join-copy">
           <SectionTag number="06" en="JOIN THE SOCIETY" label="加入协会" />
-          <h2 className="section-title">
-            准备好写下
-            <br />
-            <GlitchText text="下一行了吗？" />
-          </h2>
+          <Reveal>
+            <h2 className="section-title">
+              准备好写下
+              <br />
+              <GlitchText text="下一行了吗？" />
+            </h2>
+          </Reveal>
           <p>
             扫描二维码加入 {recruitment}群，我们在群里等你发出第一条消息。
           </p>

@@ -44,11 +44,13 @@ export function RouteSection() {
         <div className="section-heading section-heading--split">
           <div>
             <SectionTag number="02" en="GROWTH ROUTE" label="培养路线" />
-            <h2 className="section-title">
-              项目做着做着
-              <br />
-              <GlitchText text="就会了" />
-            </h2>
+            <Reveal>
+              <h2 className="section-title">
+                项目做着做着
+                <br />
+                <GlitchText text="就会了" />
+              </h2>
+            </Reveal>
           </div>
           <p className="section-side">
             我们的培养路径很直接。

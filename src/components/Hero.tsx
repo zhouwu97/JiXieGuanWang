@@ -133,9 +133,19 @@ export function Hero() {
                   </span>
                 </p>
               ))}
-              <p className="term-caret" aria-hidden="true">
-                ▊
-              </p>
+              <div className="term-footer">
+                <p className="term-caret" aria-hidden="true">
+                  ▊
+                </p>
+                <div className="signal-bars" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
             </div>
           </div>
 
