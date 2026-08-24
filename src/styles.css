@@ -1862,48 +1862,75 @@ html {
   margin-top: 76px;
 }
 
-.archive-card {
-  position: relative;
-  margin: 0;
+.album {
+  margin-top: 76px;
   background: var(--paper);
   border: 1px solid var(--line-strong);
-  box-shadow: 10px 10px 0 rgba(38, 34, 26, 0.12);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 12px 12px 0 rgba(38, 34, 26, 0.12);
 }
 
-.archive-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 14px 14px 0 rgba(38, 34, 26, 0.2);
-}
-
-.archive-card__media {
-  position: relative;
-  aspect-ratio: 8 / 5;
-  overflow: hidden;
-  background: var(--bg-deep);
+.album__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--line);
 }
 
-.archive-card__media img {
+.album__name {
+  font-size: 15.5px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.album__meta {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.album__media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-deep);
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.album__track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.55s cubic-bezier(0.22, 0.75, 0.35, 1);
+  will-change: transform;
+}
+
+.album__slide {
+  flex: 0 0 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.album__slide img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(1.02);
-  transition: transform 0.7s cubic-bezier(0.22, 0.75, 0.35, 1);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-.archive-card:hover .archive-card__media img {
-  transform: scale(1.07);
-}
-
-.archive-card__stamp {
+.album__stamp {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 5px 10px;
-  background: rgba(38, 34, 26, 0.82);
-  color: #ece5d2;
+  top: 14px;
+  left: 14px;
+  padding: 6px 10px;
+  background: rgba(251, 249, 240, 0.94);
+  color: var(--ink);
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
@@ -1911,11 +1938,79 @@ html {
   pointer-events: none;
 }
 
-.archive-card figcaption {
-  padding: 18px 20px 20px;
+.album__counter {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 6px 10px;
+  background: rgba(38, 34, 26, 0.8);
+  color: #ece5d2;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  pointer-events: none;
 }
 
-.archive-card__date {
+.album__nav {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.album__nav button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.album__nav button:hover {
+  background: var(--accent);
+  color: #fff8ef;
+  transform: translateY(-2px);
+}
+
+.album__dots {
+  position: absolute;
+  left: 16px;
+  bottom: 26px;
+  display: flex;
+  gap: 9px;
+}
+
+.album__dots button {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 1px solid rgba(251, 249, 240, 0.95);
+  background: transparent;
+  transform: rotate(45deg);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.album__dots button.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.album__caption {
+  padding: 20px 22px 24px;
+  animation: caption-in 0.5s ease both;
+}
+
+.album__caption-date {
   color: var(--accent);
   font-family: var(--mono);
   font-size: 9.5px;
@@ -1923,19 +2018,20 @@ html {
   letter-spacing: 0.16em;
 }
 
-.archive-card h3 {
+.album__caption h3 {
   margin: 9px 0 0;
-  font-size: 16.5px;
+  font-size: 17px;
   font-weight: 800;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-.archive-card p {
+.album__caption p {
   margin: 8px 0 0;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 13.5px;
+  line-height: 1.85;
 }
+
 
 /* =============================================================
    招新说明
@@ -2502,6 +2598,18 @@ html {
   }
 }
 
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes qr-scan {
   0% {
     transform: translateY(-80px);
@@ -2695,6 +2803,10 @@ html {
     grid-template-columns: 1fr;
     gap: 26px;
   }
+
+  .album__media {
+    aspect-ratio: 4 / 3;
+  }
 }
 
 @media (max-width: 700px) {
@@ -2842,6 +2954,36 @@ html {
 
   .route-quote p {
     font-size: 18px;
+  }
+
+  .album__media {
+    aspect-ratio: 4 / 3;
+  }
+
+  .album__head {
+    padding: 14px 16px;
+  }
+
+  .album__stamp {
+    display: none;
+  }
+
+  .album__nav button {
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  .album__caption {
+    padding: 16px 16px 20px;
+  }
+
+  .album__caption h3 {
+    font-size: 15px;
+  }
+
+  .album__caption p {
+    font-size: 12.5px;
   }
 
   .hero-corner--tl,
