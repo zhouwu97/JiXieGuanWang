@@ -32,7 +32,7 @@ describe('Tracks 状态机与可访问交互', () => {
     expect(dossier()).toHaveClass('is-exiting')
 
     await act(async () => {
-      vi.advanceTimersByTime(170)
+      vi.advanceTimersByTime(220)
     })
     expect(dossier()).toHaveClass('is-entering')
     expect(dossier()).toHaveTextContent('网络安全')

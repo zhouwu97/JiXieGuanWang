@@ -4597,3 +4597,269 @@ body.qr-open .pointer-glow {
     transition: none !important;
   }
 }
+
+/* =============================================================
+   Tracks V7 密度与镜头精修
+   保留现有 React 状态机，只恢复原型的一屏档案比例与滚动层次。
+   ============================================================= */
+@media (min-width: 761px) {
+  .tracks-run > .tracks .section-heading {
+    transform-origin: left top;
+    will-change: transform, opacity;
+  }
+
+  .tracks-run > .tracks .ghost-word {
+    will-change: transform;
+  }
+
+  .tracks-run > .tracks .track-grid {
+    grid-template-columns: 330px minmax(0, 1fr);
+    gap: clamp(30px, 4.5vw, 64px);
+    margin-top: 48px;
+  }
+
+  .tracks-run > .tracks .track-row {
+    min-height: 79px;
+    padding: 11px 16px 11px 14px;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+  }
+
+  .tracks-run > .tracks .track-row.is-active {
+    transform: translateX(8px);
+  }
+
+  .tracks-run > .tracks .track-row.is-active .track-row__sig {
+    transform: rotate(45deg) scale(1);
+  }
+
+  .tracks-run > .tracks .dossier {
+    min-height: 570px;
+    padding: 31px 38px 0;
+    transform: translate3d(0, var(--enter-y, 0), 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, opacity 0.22s ease;
+  }
+
+  .tracks-run > .tracks .dossier__title {
+    margin-top: 26px;
+  }
+
+  .tracks-run > .tracks .dossier__summary {
+    margin: 20px 0 24px;
+    font-size: 14px;
+    line-height: 1.85;
+  }
+
+  .tracks-run > .tracks .meta-cell {
+    gap: 7px;
+    padding: 13px 16px;
+  }
+
+  .tracks-run > .tracks .dossier__label {
+    font-size: 9px;
+  }
+
+  .tracks-run > .tracks .opportunity {
+    margin-top: 22px;
+  }
+
+  .tracks-run > .tracks .opportunity ul {
+    gap: 6px;
+    margin-top: 11px;
+  }
+
+  .tracks-run > .tracks .opportunity li {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .tracks-run > .tracks .dossier__block {
+    margin-top: 22px;
+  }
+
+  .tracks-run > .tracks .module-list {
+    gap: 8px;
+    margin-top: 11px;
+  }
+
+  .tracks-run > .tracks .module-list span {
+    padding: 7px 11px;
+    font-size: 11px;
+  }
+
+  .tracks-run > .tracks .comp-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 18px;
+    margin-top: 11px;
+  }
+
+  .tracks-run > .tracks .comp-list li {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .tracks-run > .tracks .comp-list li span {
+    display: inline;
+  }
+
+  .tracks-run > .tracks .comp-list li b {
+    margin-right: 8px;
+  }
+
+  .tracks-run > .tracks .comp-list li > i {
+    display: none;
+  }
+
+  .tracks-run > .tracks .dossier__foot {
+    margin: 25px -38px 0;
+    padding: 10px 38px;
+    background: var(--bg-deep);
+  }
+
+  .tracks-run > .tracks .dossier.is-exiting {
+    opacity: 0;
+    transform: translate3d(40px, 9px, 0) rotateX(0deg) rotateY(-2deg);
+    animation: none;
+  }
+
+  .tracks-run > .tracks .dossier.is-entering {
+    animation: dossier-swap-in-v7 0.23s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .track-chapter {
+    right: 30px;
+    gap: 7px;
+  }
+
+  .track-chapter i {
+    width: 4px;
+    height: 18px;
+    transition: height 0.35s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s ease;
+  }
+
+  .track-chapter i.active {
+    height: 52px;
+    background: var(--accent);
+  }
+}
+
+@keyframes dossier-swap-in-v7 {
+  from {
+    opacity: 0;
+    transform: translate3d(-25px, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  }
+}
+
+/* 桌面短视口的密度补偿：避免 sticky 观察窗把赛事区裁掉。 */
+@media (min-width: 1100px) and (max-height: 920px) and (prefers-reduced-motion: no-preference) {
+  .tracks-run > .tracks {
+    padding-top: 72px;
+    padding-bottom: 32px;
+  }
+
+  .tracks-run > .tracks .track-grid {
+    margin-top: 32px;
+  }
+
+  .tracks-run > .tracks .dossier {
+    padding-top: 26px;
+  }
+
+  .tracks-run > .tracks .dossier__title {
+    margin-top: 22px;
+  }
+
+  .tracks-run > .tracks .dossier__summary {
+    margin: 16px 0 20px;
+  }
+
+  .tracks-run > .tracks .meta-cell {
+    padding: 11px 14px;
+  }
+
+  .tracks-run > .tracks .dossier__block {
+    margin-top: 18px;
+  }
+
+  .tracks-run > .tracks .module-list {
+    margin-top: 9px;
+  }
+
+  .tracks-run > .tracks .module-list span {
+    padding: 6px 10px;
+  }
+
+  .tracks-run > .tracks .comp-list {
+    margin-top: 9px;
+  }
+
+  .tracks-run > .tracks .dossier__foot {
+    margin-top: 20px;
+  }
+}
+
+@media (min-width: 1100px) and (max-height: 820px) and (prefers-reduced-motion: no-preference) {
+  .tracks-run > .tracks {
+    padding-top: 56px;
+    padding-bottom: 24px;
+  }
+
+  .tracks-run > .tracks .track-grid {
+    margin-top: 24px;
+  }
+
+  .tracks-run > .tracks .dossier {
+    min-height: 0;
+    padding-top: 24px;
+  }
+
+  .tracks-run > .tracks .dossier__title {
+    margin-top: 20px;
+  }
+
+  .tracks-run > .tracks .dossier__summary {
+    margin: 14px 0 18px;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+
+  .tracks-run > .tracks .meta-cell {
+    padding: 10px 14px;
+  }
+
+  .tracks-run > .tracks .dossier__block {
+    margin-top: 16px;
+  }
+
+  .tracks-run > .tracks .module-list {
+    margin-top: 8px;
+  }
+
+  .tracks-run > .tracks .module-list span {
+    padding: 5px 9px;
+    font-size: 10.5px;
+  }
+
+  .tracks-run > .tracks .comp-list {
+    gap: 4px 12px;
+    margin-top: 8px;
+  }
+
+  .tracks-run > .tracks .comp-list li {
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .tracks-run > .tracks .dossier__foot {
+    margin-top: 18px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
