@@ -14,8 +14,10 @@ import {
 } from '../data/tracks'
 import {
   getAdjacentTrackIndex,
-  TRACK_ENTER_MS,
-  TRACK_EXIT_MS,
+  resolveTrackChapter,
+  TRACK_CHAPTER_HYSTERESIS,
+  TRACK_ENTER_WATCHDOG_MS,
+  TRACK_EXIT_WATCHDOG_MS,
 } from '../motion/trackTransition'
 import { clamp } from '../motion/motionMath'
 import { useMotionReaction } from '../motion/useMotionReaction'
@@ -29,6 +31,10 @@ function clearTimer(timerRef: { current: number | null }) {
   if (timerRef.current === null) return
   window.clearTimeout(timerRef.current)
   timerRef.current = null
+}
+
+function traceTracks(message: string) {
+  if (import.meta.env.DEV) console.debug(`[tracks] ${message}`)
 }
 
 function TrackSelector({
@@ -92,7 +98,17 @@ function TrackSelector({
   )
 }
 
-function Dossier({ track, phase }: { track: TrackDefinition; phase: TrackTransitionPhase }) {
+function Dossier({
+  track,
+  phase,
+  onExitTransitionEnd,
+  onEnterAnimationEnd,
+}: {
+  track: TrackDefinition
+  phase: TrackTransitionPhase
+  onExitTransitionEnd: () => void
+  onEnterAnimationEnd: () => void
+}) {
   const frameRef = useRef<HTMLDivElement>(null)
   const boundsRef = useRef<DOMRect | null>(null)
 
@@ -146,6 +162,14 @@ function Dossier({ track, phase }: { track: TrackDefinition; phase: TrackTransit
         aria-labelledby={`track-tab-${track.id}`}
         tabIndex={0}
         style={{ '--track-accent': track.accent } as CSSProperties}
+        onTransitionEnd={(event) => {
+          if (event.target !== event.currentTarget || event.propertyName !== 'transform') return
+          onExitTransitionEnd()
+        }}
+        onAnimationEnd={(event) => {
+          if (event.target !== event.currentTarget || event.animationName !== 'dossier-swap-in') return
+          onEnterAnimationEnd()
+        }}
       >
         <span className="dossier__ghost" aria-hidden="true">
           {String(track.index).padStart(2, '0')}
@@ -261,8 +285,12 @@ export function TracksSection({
   const chapterIndexRef = useRef(chapterIndex)
   const phaseRef = useRef<TrackTransitionPhase>('stable')
   const pendingIdRef = useRef<TrackId | null>(null)
-  const exitTimerRef = useRef<number | null>(null)
-  const enterTimerRef = useRef<number | null>(null)
+  const exitWatchdogRef = useRef<number | null>(null)
+  const enterWatchdogRef = useRef<number | null>(null)
+  const scrollIntentRef = useRef<number | null>(null)
+  const scrollIntentTimerRef = useRef<number | null>(null)
+  const finishExitRef = useRef<() => void>(() => {})
+  const finishEnterRef = useRef<() => void>(() => {})
   const lastActiveIdRef = useRef<TrackId>(activeId)
   const restrictedCount = tracks.filter((track) => track.restricted).length
   const reduced = useReducedMotion()
@@ -271,48 +299,71 @@ export function TracksSection({
   const scrollChapterEnabled = !reduced && !mobile && !coarse
   activeIdRef.current = activeId
 
-  const updateDisplayedId = (id: TrackId) => {
+  const updateDisplayedId = useCallback((id: TrackId) => {
     displayedIdRef.current = id
     setDisplayedId(id)
-  }
+  }, [])
 
-  const updatePhase = (nextPhase: TrackTransitionPhase) => {
+  const updatePhase = useCallback((nextPhase: TrackTransitionPhase) => {
+    if (phaseRef.current !== nextPhase) {
+      traceTracks(`phase ${phaseRef.current} -> ${nextPhase}`)
+    }
     phaseRef.current = nextPhase
     setPhase(nextPhase)
-  }
+  }, [])
 
-  const requestTransition = useCallback((id: TrackId) => {
-    const beginExit = () => {
-      clearTimer(exitTimerRef)
-      clearTimer(enterTimerRef)
-      updatePhase('exiting')
-      exitTimerRef.current = window.setTimeout(() => {
-        exitTimerRef.current = null
-        const target = pendingIdRef.current
-        pendingIdRef.current = null
-        if (target === null || target === displayedIdRef.current) {
-          updatePhase('stable')
-          return
-        }
+  const beginExit = useCallback(() => {
+    clearTimer(exitWatchdogRef)
+    clearTimer(enterWatchdogRef)
+    updatePhase('exiting')
+    exitWatchdogRef.current = window.setTimeout(() => {
+      finishExitRef.current()
+    }, TRACK_EXIT_WATCHDOG_MS)
+  }, [updatePhase])
 
-        updateDisplayedId(target)
-        updatePhase('entering')
-        enterTimerRef.current = window.setTimeout(() => {
-          enterTimerRef.current = null
-          if (pendingIdRef.current !== null && pendingIdRef.current !== displayedIdRef.current) {
-            beginExit()
-            return
-          }
-          pendingIdRef.current = null
-          updatePhase('stable')
-        }, TRACK_ENTER_MS)
-      }, TRACK_EXIT_MS)
+  const finishExit = useCallback(() => {
+    clearTimer(exitWatchdogRef)
+    if (phaseRef.current !== 'exiting') return
+
+    const target = pendingIdRef.current
+    pendingIdRef.current = null
+    if (target === null || target === displayedIdRef.current) {
+      updatePhase('stable')
+      return
     }
 
+    traceTracks(`display=${String(target)} entering`)
+    updateDisplayedId(target)
+    updatePhase('entering')
+    enterWatchdogRef.current = window.setTimeout(() => {
+      finishEnterRef.current()
+    }, TRACK_ENTER_WATCHDOG_MS)
+  }, [updateDisplayedId, updatePhase])
+
+  const finishEnter = useCallback(() => {
+    clearTimer(enterWatchdogRef)
+    if (phaseRef.current !== 'entering') return
+
+    if (pendingIdRef.current !== null && pendingIdRef.current !== displayedIdRef.current) {
+      beginExit()
+      return
+    }
+
+    pendingIdRef.current = null
+    updatePhase('stable')
+  }, [beginExit, updatePhase])
+
+  useEffect(() => {
+    finishExitRef.current = finishExit
+    finishEnterRef.current = finishEnter
+  }, [finishEnter, finishExit])
+
+  const requestTransition = useCallback((id: TrackId) => {
     if (id === displayedIdRef.current) {
       pendingIdRef.current = null
-      clearTimer(exitTimerRef)
-      clearTimer(enterTimerRef)
+      if (phaseRef.current === 'stable' || phaseRef.current === 'entering') return
+      clearTimer(exitWatchdogRef)
+      clearTimer(enterWatchdogRef)
       updatePhase('stable')
       return
     }
@@ -320,7 +371,7 @@ export function TracksSection({
     pendingIdRef.current = id
     if (phaseRef.current === 'exiting') return
     beginExit()
-  }, [])
+  }, [beginExit, updatePhase])
 
   useEffect(() => {
     if (activeId === lastActiveIdRef.current) return
@@ -329,8 +380,9 @@ export function TracksSection({
   }, [activeId, requestTransition])
 
   useEffect(() => () => {
-    clearTimer(exitTimerRef)
-    clearTimer(enterTimerRef)
+    clearTimer(exitWatchdogRef)
+    clearTimer(enterWatchdogRef)
+    clearTimer(scrollIntentTimerRef)
   }, [])
 
   const displayedTrack = getTrackById(displayedId) ?? activeTrack
@@ -341,6 +393,12 @@ export function TracksSection({
     if (!runway) return
     if (runway.offsetHeight <= window.innerHeight) return
     const travel = runway.offsetHeight - window.innerHeight
+    scrollIntentRef.current = index
+    clearTimer(scrollIntentTimerRef)
+    scrollIntentTimerRef.current = window.setTimeout(() => {
+      scrollIntentRef.current = null
+      scrollIntentTimerRef.current = null
+    }, TRACK_EXIT_WATCHDOG_MS + TRACK_ENTER_WATCHDOG_MS)
     const top = window.scrollY + runway.getBoundingClientRect().top + Math.max(1, travel) * ((index + 0.06) / tracks.length)
     window.scrollTo({ top, behavior: reduced ? 'auto' : 'smooth' })
   }
@@ -356,6 +414,7 @@ export function TracksSection({
       return
     }
     lastActiveIdRef.current = id
+    activeIdRef.current = id
     requestTransition(id)
     if (id !== activeId) onSelect(id)
     scrollToChapter(nextIndex)
@@ -369,19 +428,34 @@ export function TracksSection({
       const rect = runway.getBoundingClientRect()
       const travel = runway.offsetHeight - window.innerHeight
       const progress = clamp(-rect.top / Math.max(1, travel), 0, 1)
-      const nextIndex = Math.min(tracks.length - 1, Math.floor(progress * tracks.length))
       if (ghostRef.current) ghostRef.current.style.transform = `translate3d(${progress * 80}px, ${progress * 22}px, 0)`
       if (headingRef.current) {
         const exit = Math.max(0, progress - 0.72)
         headingRef.current.style.transform = `translate3d(0, ${-exit * 100}px, 0)`
         headingRef.current.style.opacity = String(1 - Math.max(0, progress - 0.74) * 2.5)
       }
+
+      if (scrollIntentRef.current !== null) {
+        const targetProgress = (scrollIntentRef.current + 0.06) / tracks.length
+        if (Math.abs(progress - targetProgress) > TRACK_CHAPTER_HYSTERESIS + 0.012) return
+        scrollIntentRef.current = null
+        clearTimer(scrollIntentTimerRef)
+      }
+
+      const nextIndex = resolveTrackChapter(
+        progress,
+        chapterIndexRef.current,
+        tracks.length,
+        TRACK_CHAPTER_HYSTERESIS,
+      )
       if (nextIndex === chapterIndexRef.current) return
+      traceTracks(`chapter ${chapterIndexRef.current + 1} -> ${nextIndex + 1}`)
       chapterIndexRef.current = nextIndex
       setChapterIndex(nextIndex)
       const nextId = tracks[nextIndex].id
       if (activeIdRef.current === nextId) return
       activeIdRef.current = nextId
+      lastActiveIdRef.current = nextId
       onSelect(nextId)
       requestTransition(nextId)
     },
@@ -444,7 +518,12 @@ export function TracksSection({
               />
             </Reveal>
             <Reveal delay={140}>
-              <Dossier track={displayedTrack} phase={phase} />
+              <Dossier
+                track={displayedTrack}
+                phase={phase}
+                onExitTransitionEnd={() => finishExitRef.current()}
+                onEnterAnimationEnd={() => finishEnterRef.current()}
+              />
             </Reveal>
           </div>
         </div>

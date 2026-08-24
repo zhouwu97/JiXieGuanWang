@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { TracksSection } from './Tracks'
 import type { TrackId } from '../data/tracks'
+import { TRACK_ENTER_WATCHDOG_MS, TRACK_EXIT_WATCHDOG_MS } from '../motion/trackTransition'
 
 function Harness({ initial = 'ai-fullstack' as TrackId }: { initial?: TrackId }) {
   const [activeId, setActiveId] = useState<TrackId>(initial)
@@ -13,9 +14,24 @@ function dossier() {
   return screen.getByRole('tabpanel')
 }
 
+function transitionEnd(propertyName: string) {
+  const event = new Event('transitionend', { bubbles: true })
+  Object.defineProperty(event, 'propertyName', { value: propertyName })
+  dossier().dispatchEvent(event)
+}
+
+function animationEnd(animationName: string) {
+  const event = new Event('animationend', { bubbles: true })
+  Object.defineProperty(event, 'animationName', { value: animationName })
+  dossier().dispatchEvent(event)
+}
+
 async function finishTransition() {
   await act(async () => {
-    vi.advanceTimersByTime(1000)
+    transitionEnd('transform')
+  })
+  await act(async () => {
+    animationEnd('dossier-swap-in')
   })
 }
 
@@ -25,26 +41,26 @@ describe('Tracks 状态机与可访问交互', () => {
   })
 
   it('单次切换依次经过 exiting、entering 并最终稳定', async () => {
-    vi.useFakeTimers()
     render(<Harness />)
 
     fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
     expect(dossier()).toHaveClass('is-exiting')
 
     await act(async () => {
-      vi.advanceTimersByTime(220)
+      transitionEnd('transform')
     })
     expect(dossier()).toHaveClass('is-entering')
     expect(dossier()).toHaveTextContent('网络安全')
 
-    await finishTransition()
+    await act(async () => {
+      animationEnd('dossier-swap-in')
+    })
     expect(dossier()).not.toHaveClass('is-exiting')
     expect(dossier()).not.toHaveClass('is-entering')
     expect(dossier()).toHaveTextContent('网络安全')
   })
 
   it('快速连续点击最终只显示最后一次选择', async () => {
-    vi.useFakeTimers()
     render(<Harness />)
 
     fireEvent.click(screen.getByRole('tab', { name: '人工智能算法' }))
@@ -58,7 +74,6 @@ describe('Tracks 状态机与可访问交互', () => {
   })
 
   it('点击当前已选方向不会重新播放切换动画', async () => {
-    vi.useFakeTimers()
     render(<Harness />)
     const current = screen.getByRole('tab', { name: 'AI 全栈开发' })
 
@@ -72,17 +87,66 @@ describe('Tracks 状态机与可访问交互', () => {
   })
 
   it('旧 timer 不会覆盖快速产生的新目标', async () => {
-    vi.useFakeTimers()
     render(<Harness />)
 
     fireEvent.click(screen.getByRole('tab', { name: '人工智能算法' }))
-    await act(async () => {
-      vi.advanceTimersByTime(80)
-    })
     fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
 
     await finishTransition()
     expect(dossier()).toHaveTextContent('网络安全')
+  })
+
+  it('entering 阶段收到相同目标时不会提前结束动画', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
+    await act(async () => {
+      transitionEnd('transform')
+    })
+    expect(dossier()).toHaveClass('is-entering')
+
+    fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
+    expect(dossier()).toHaveClass('is-entering')
+
+    await act(async () => {
+      animationEnd('dossier-swap-in')
+    })
+    expect(dossier()).not.toHaveClass('is-entering')
+  })
+
+  it('只接受 dossier 自身的 transform 与 swap animation 事件', async () => {
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
+    transitionEnd('opacity')
+    expect(dossier()).toHaveClass('is-exiting')
+
+    await act(async () => {
+      transitionEnd('transform')
+    })
+    animationEnd('live-pulse')
+    expect(dossier()).toHaveClass('is-entering')
+
+    await act(async () => {
+      animationEnd('dossier-swap-in')
+    })
+    expect(dossier()).not.toHaveClass('is-entering')
+  })
+
+  it('CSS 事件丢失时 watchdog 仍能完成切换', async () => {
+    vi.useFakeTimers()
+    render(<Harness />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '网络安全' }))
+    await act(async () => {
+      vi.advanceTimersByTime(TRACK_EXIT_WATCHDOG_MS)
+    })
+    expect(dossier()).toHaveClass('is-entering')
+
+    await act(async () => {
+      vi.advanceTimersByTime(TRACK_ENTER_WATCHDOG_MS)
+    })
+    expect(dossier()).not.toHaveClass('is-entering')
   })
 
   it('卸载时清理仍存活的 exit/enter timer', () => {
