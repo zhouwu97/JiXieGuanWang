@@ -223,7 +223,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
           const y2 = other.y * height + Math.cos(time * 0.00019 + other.phase) * 5
           const distance = Math.hypot(x - x2, y - y2)
           if (distance < 92) {
-            context.strokeStyle = `rgba(38, 34, 26, ${((1 - distance / 92) * 0.13 + influence * 0.12).toFixed(3)})`
+            context.strokeStyle = `rgba(26, 32, 39, ${((1 - distance / 92) * 0.13 + influence * 0.12).toFixed(3)})`
             context.lineWidth = 0.6
             context.beginPath()
             context.moveTo(x, y)
@@ -236,7 +236,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
         context.translate(x, y)
         context.rotate(Math.PI / 4)
         const radius = node.size + influence * 2.2
-        context.fillStyle = node.amber ? '#D8431F' : '#5A615C'
+        context.fillStyle = node.amber ? '#D8431F' : '#4E5A63'
         context.globalAlpha = node.amber ? 0.9 : Math.min(0.8, 0.42 + influence * 0.5)
         context.fillRect(-radius, -radius, radius * 2, radius * 2)
         context.restore()
@@ -245,7 +245,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
       const cx = width * 0.8
       const cy = height * 0.28
       const pulse = (Math.sin(time * 0.0005) + 1) / 2
-      context.strokeStyle = 'rgba(38, 34, 26, 0.10)'
+      context.strokeStyle = 'rgba(26, 32, 39, 0.10)'
       context.lineWidth = 1
       diamond(cx, cy, 86 + pulse * 24)
       context.save()
@@ -254,7 +254,7 @@ export function Network({ label = '信号网络可视化' }: { label?: string })
       context.strokeStyle = 'rgba(216, 67, 31, 0.18)'
       diamond(0, 0, 58)
       context.rotate(-time * 0.00018)
-      context.strokeStyle = 'rgba(38, 34, 26, 0.09)'
+      context.strokeStyle = 'rgba(26, 32, 39, 0.09)'
       diamond(0, 0, 76)
       context.restore()
     }
