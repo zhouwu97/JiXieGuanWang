@@ -3590,14 +3590,14 @@ body:not(.pointer-ready) .pointer-system {
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, opacity 0.2s ease;
 }
 
-.dossier.is-switching {
+.dossier.is-exiting {
   opacity: 0;
-  transform: translate3d(24px, 10px, 0) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transform: translate3d(20px, 8px, 0) rotateX(0deg) rotateY(0deg);
   animation: none;
 }
 
-.dossier:not(.is-switching) {
-  animation: dossier-swap-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+.dossier.is-entering {
+  animation: dossier-swap-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .route-grid > .reveal.is-in .route-node {

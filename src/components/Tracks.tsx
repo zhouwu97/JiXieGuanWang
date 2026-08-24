@@ -1,14 +1,31 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import {
   getTrackById,
   tracks,
   type TrackDefinition,
   type TrackId,
 } from '../data/tracks'
-import { clamp } from '../motion/motionMath'
-import { useRafLoop } from '../motion/useRafLoop'
-import { useReducedMotion } from '../motion/useReducedMotion'
+import {
+  getAdjacentTrackIndex,
+  TRACK_ENTER_MS,
+  TRACK_EXIT_MS,
+} from '../motion/trackTransition'
 import { GlitchText, Reveal, SectionTag } from './common'
+
+export type TrackTransitionPhase = 'stable' | 'exiting' | 'entering'
+
+function clearTimer(timerRef: { current: number | null }) {
+  if (timerRef.current === null) return
+  window.clearTimeout(timerRef.current)
+  timerRef.current = null
+}
 
 function TrackSelector({
   activeId,
@@ -19,18 +36,40 @@ function TrackSelector({
   onSelect: (id: TrackId) => void
   restrictedCount: number
 }) {
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = getAdjacentTrackIndex(index, 1, tracks.length)
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = getAdjacentTrackIndex(index, -1, tracks.length)
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = tracks.length - 1
+    }
+    if (nextIndex === null || nextIndex < 0) return
+    event.preventDefault()
+    const nextTrack = tracks[nextIndex]
+    onSelect(nextTrack.id)
+    document.getElementById(`track-tab-${nextTrack.id}`)?.focus()
+  }
+
   return (
     <div role="tablist" aria-label="技术方向选择" className="track-selector">
-      {tracks.map((track) => (
+      {tracks.map((track, index) => (
         <button
           key={track.id}
           type="button"
           role="tab"
+          id={`track-tab-${track.id}`}
+          aria-controls={`track-panel-${track.id}`}
           aria-label={track.name}
           aria-selected={activeId === track.id}
+          tabIndex={activeId === track.id ? 0 : -1}
           className={activeId === track.id ? 'track-row is-active' : 'track-row'}
           style={{ '--track-accent': track.accent } as CSSProperties}
           onClick={() => onSelect(track.id)}
+          onKeyDown={(event) => onKeyDown(event, index)}
         >
           <span className="track-row__num">{String(track.index).padStart(2, '0')}</span>
           <span className="track-row__name">{track.shortName}</span>
@@ -49,14 +88,34 @@ function TrackSelector({
   )
 }
 
-function Dossier({ track, switching }: { track: TrackDefinition; switching: boolean }) {
+function Dossier({ track, phase }: { track: TrackDefinition; phase: TrackTransitionPhase }) {
   const frameRef = useRef<HTMLDivElement>(null)
+  const boundsRef = useRef<DOMRect | null>(null)
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'touch') return
+  const resetTilt = useCallback(() => {
     const el = frameRef.current
     if (!el) return
-    const bounds = el.getBoundingClientRect()
+    el.style.setProperty('--tilt-x', '0deg')
+    el.style.setProperty('--tilt-y', '0deg')
+  }, [])
+
+  useEffect(() => {
+    if (phase === 'stable') return
+    boundsRef.current = null
+    resetTilt()
+  }, [phase, resetTilt])
+
+  const onPointerEnter = () => {
+    if (phase !== 'stable') return
+    boundsRef.current = frameRef.current?.getBoundingClientRect() ?? null
+  }
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch' || phase !== 'stable') return
+    const el = frameRef.current
+    if (!el) return
+    const bounds = boundsRef.current ?? el.getBoundingClientRect()
+    boundsRef.current = bounds
     const dx = (event.clientX - bounds.left) / bounds.width - 0.5
     const dy = (event.clientY - bounds.top) / bounds.height - 0.5
     el.style.setProperty('--tilt-x', `${(-dy * 3.2).toFixed(2)}deg`)
@@ -64,22 +123,24 @@ function Dossier({ track, switching }: { track: TrackDefinition; switching: bool
   }
 
   const onPointerLeave = () => {
-    const el = frameRef.current
-    if (!el) return
-    el.style.setProperty('--tilt-x', '0deg')
-    el.style.setProperty('--tilt-y', '0deg')
+    boundsRef.current = null
+    resetTilt()
   }
 
   return (
     <div
       ref={frameRef}
       className="tilt"
+      onPointerEnter={onPointerEnter}
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
     >
       <article
-        className={`dossier${switching ? ' is-switching' : ''}`}
-        key={track.id}
+        className={`dossier${phase === 'stable' ? '' : ` is-${phase}`}`}
+        role="tabpanel"
+        id={`track-panel-${track.id}`}
+        aria-labelledby={`track-tab-${track.id}`}
+        tabIndex={0}
         style={{ '--track-accent': track.accent } as CSSProperties}
       >
         <span className="dossier__ghost" aria-hidden="true">
@@ -184,50 +245,89 @@ export function TracksSection({
   onSelect: (id: TrackId) => void
 }) {
   const activeTrack = getTrackById(activeId) ?? tracks[0]
-  const [displayedId, setDisplayedId] = useState(activeId)
-  const [switching, setSwitching] = useState(false)
-  const switchTimer = useRef<number | null>(null)
-  const sectionRef = useRef<HTMLElement>(null)
-  const autoPauseUntil = useRef(0)
-  const reduced = useReducedMotion()
+  const [displayedId, setDisplayedId] = useState<TrackId>(activeId)
+  const [phase, setPhase] = useState<TrackTransitionPhase>('stable')
+  const displayedIdRef = useRef<TrackId>(activeId)
+  const phaseRef = useRef<TrackTransitionPhase>('stable')
+  const pendingIdRef = useRef<TrackId | null>(null)
+  const exitTimerRef = useRef<number | null>(null)
+  const enterTimerRef = useRef<number | null>(null)
+  const lastActiveIdRef = useRef<TrackId>(activeId)
   const restrictedCount = tracks.filter((track) => track.restricted).length
 
+  const updateDisplayedId = (id: TrackId) => {
+    displayedIdRef.current = id
+    setDisplayedId(id)
+  }
+
+  const updatePhase = (nextPhase: TrackTransitionPhase) => {
+    phaseRef.current = nextPhase
+    setPhase(nextPhase)
+  }
+
+  const requestTransition = useCallback((id: TrackId) => {
+    const beginExit = () => {
+      clearTimer(exitTimerRef)
+      clearTimer(enterTimerRef)
+      updatePhase('exiting')
+      exitTimerRef.current = window.setTimeout(() => {
+        exitTimerRef.current = null
+        const target = pendingIdRef.current
+        pendingIdRef.current = null
+        if (target === null || target === displayedIdRef.current) {
+          updatePhase('stable')
+          return
+        }
+
+        updateDisplayedId(target)
+        updatePhase('entering')
+        enterTimerRef.current = window.setTimeout(() => {
+          enterTimerRef.current = null
+          if (pendingIdRef.current !== null && pendingIdRef.current !== displayedIdRef.current) {
+            beginExit()
+            return
+          }
+          pendingIdRef.current = null
+          updatePhase('stable')
+        }, TRACK_ENTER_MS)
+      }, TRACK_EXIT_MS)
+    }
+
+    if (id === displayedIdRef.current) {
+      pendingIdRef.current = null
+      clearTimer(exitTimerRef)
+      clearTimer(enterTimerRef)
+      updatePhase('stable')
+      return
+    }
+
+    pendingIdRef.current = id
+    if (phaseRef.current === 'exiting') return
+    beginExit()
+  }, [])
+
   useEffect(() => {
-    if (activeId !== displayedId) {
-      setDisplayedId(activeId)
-      setSwitching(false)
-    }
-    return () => {
-      if (switchTimer.current !== null) window.clearTimeout(switchTimer.current)
-    }
-  }, [activeId, displayedId])
+    if (activeId === lastActiveIdRef.current) return
+    lastActiveIdRef.current = activeId
+    requestTransition(activeId)
+  }, [activeId, requestTransition])
+
+  useEffect(() => () => {
+    clearTimer(exitTimerRef)
+    clearTimer(enterTimerRef)
+  }, [])
 
   const displayedTrack = getTrackById(displayedId) ?? activeTrack
 
   const handleSelect = (id: TrackId) => {
-    autoPauseUntil.current = performance.now() + 2000
-    setDisplayedId(id)
-    setSwitching(true)
-    onSelect(id)
-    if (switchTimer.current !== null) window.clearTimeout(switchTimer.current)
-    switchTimer.current = window.setTimeout(() => {
-      setSwitching(false)
-      switchTimer.current = null
-    }, 420)
+    if (id === activeId && id === displayedIdRef.current && phaseRef.current === 'stable') return
+    lastActiveIdRef.current = id
+    requestTransition(id)
+    if (id !== activeId) onSelect(id)
   }
 
-  useRafLoop(({ time }) => {
-    if (reduced || window.innerWidth <= 1024 || time < autoPauseUntil.current) return
-    const section = sectionRef.current
-    if (!section) return
-    const travel = Math.max(1, section.offsetHeight - window.innerHeight)
-    const progress = clamp(-section.getBoundingClientRect().top / travel, 0, 1)
-    const next = tracks[Math.min(tracks.length - 1, Math.floor(progress * tracks.length))]
-    if (next && next.id !== activeId) onSelect(next.id)
-  }, !reduced)
-
   return (
-    <section id="paths" ref={sectionRef} className="section tracks">
+    <section id="paths" className="section tracks">
       <span className="ghost-word" aria-hidden="true">
         PATHS
       </span>
@@ -268,7 +368,7 @@ export function TracksSection({
             />
           </Reveal>
           <Reveal delay={140}>
-            <Dossier track={displayedTrack} switching={switching} />
+            <Dossier track={displayedTrack} phase={phase} />
           </Reveal>
         </div>
       </div>

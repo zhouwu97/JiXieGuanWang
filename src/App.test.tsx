@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 
@@ -13,13 +13,15 @@ describe('招新官网核心交互', () => {
     expect(screen.getByRole('heading', { name: /沈阳理工大学计算机协会/ })).toBeInTheDocument()
   })
 
-  it('切换方向档案并展示限专业资格信息', () => {
+  it('切换方向档案并展示限专业资格信息', async () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: 'AI 全栈开发' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /网络安全/ }))
 
-    expect(screen.getByRole('heading', { name: '网络安全' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '网络安全' })).toBeInTheDocument()
+    })
     expect(screen.getByText('仅限计算机、电子信息相关专业')).toBeInTheDocument()
     expect(screen.getByText('Yakit')).toBeInTheDocument()
   })
